@@ -7,9 +7,12 @@ to Odoo via XML-RPC using MCP-specific endpoints.
 import xmlrpc.client
 import socket
 import logging
+import json
 from typing import Optional, Dict, Any, Tuple, List
 from urllib.parse import urlparse, urlunparse
 from contextlib import contextmanager
+import urllib.request
+import urllib.error
 
 from .config import OdooConfig
 
@@ -55,6 +58,9 @@ class OdooConnection:
         # Connection state
         self._connected = False
         self._uid: Optional[int] = None
+        self._database: Optional[str] = None
+        self._authenticated = False
+        self._auth_method: Optional[str] = None  # 'api_key' or 'password'
         
         logger.info(f"Initialized OdooConnection for {self._url_components['host']}")
     
@@ -217,6 +223,9 @@ class OdooConnection:
         # Clear connection state
         self._connected = False
         self._uid = None
+        self._database = None
+        self._authenticated = False
+        self._auth_method = None
         
         logger.info("Disconnected from Odoo server")
     
@@ -447,6 +456,155 @@ class OdooConnection:
         except Exception as e:
             logger.error(f"Error validating database access: {e}")
             raise OdooConnectionError(f"Failed to validate database access: {e}")
+    
+    def _authenticate_api_key(self, database: str) -> bool:
+        """Authenticate using API key.
+        
+        Args:
+            database: Database name to authenticate against
+            
+        Returns:
+            True if authentication successful, False otherwise
+            
+        Raises:
+            OdooConnectionError: If API request fails
+        """
+        if not self.config.api_key:
+            return False
+        
+        try:
+            # Build URL for API key validation endpoint
+            url = f"{self._url_components['base_url']}/mcp/auth/validate"
+            
+            # Create request with API key header
+            req = urllib.request.Request(url)
+            req.add_header('X-API-Key', self.config.api_key)
+            
+            # Make the request
+            with urllib.request.urlopen(req, timeout=self.timeout) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                
+                if data.get('success') and data.get('data', {}).get('valid'):
+                    self._uid = data['data'].get('user_id')
+                    self._database = database
+                    self._auth_method = 'api_key'
+                    self._authenticated = True
+                    logger.info(f"Successfully authenticated with API key for user ID {self._uid}")
+                    return True
+                else:
+                    logger.warning("API key validation failed")
+                    return False
+                    
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                logger.warning("Invalid API key")
+                return False
+            else:
+                logger.error(f"HTTP error during API key validation: {e}")
+                raise OdooConnectionError(f"Failed to validate API key: {e}")
+        except Exception as e:
+            logger.error(f"Error during API key validation: {e}")
+            raise OdooConnectionError(f"Failed to validate API key: {e}")
+    
+    def _authenticate_password(self, database: str) -> bool:
+        """Authenticate using username and password.
+        
+        Args:
+            database: Database name to authenticate against
+            
+        Returns:
+            True if authentication successful, False otherwise
+            
+        Raises:
+            OdooConnectionError: If authentication fails
+        """
+        if not self.config.username or not self.config.password:
+            return False
+        
+        try:
+            # Use common proxy to authenticate
+            uid = self.common_proxy.authenticate(
+                database,
+                self.config.username,
+                self.config.password,
+                {}
+            )
+            
+            if uid:
+                self._uid = uid
+                self._database = database
+                self._auth_method = 'password'
+                self._authenticated = True
+                logger.info(f"Successfully authenticated with username/password for user ID {uid}")
+                return True
+            else:
+                logger.warning("Username/password authentication failed")
+                return False
+                
+        except xmlrpc.client.Fault as e:
+            logger.warning(f"Authentication fault: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error during password authentication: {e}")
+            raise OdooConnectionError(f"Failed to authenticate: {e}")
+    
+    def authenticate(self, database: Optional[str] = None) -> None:
+        """Authenticate with Odoo using available credentials.
+        
+        Tries API key authentication first, then falls back to username/password.
+        
+        Args:
+            database: Database name. If not provided, uses auto-selection.
+            
+        Raises:
+            OdooConnectionError: If authentication fails
+        """
+        if not self._connected:
+            raise OdooConnectionError("Not connected to Odoo")
+        
+        # Get database name
+        if database:
+            db_name = database
+        else:
+            db_name = self.auto_select_database()
+        
+        # Try API key authentication first
+        if self.config.uses_api_key:
+            logger.info("Attempting API key authentication")
+            if self._authenticate_api_key(db_name):
+                return
+            else:
+                logger.info("API key authentication failed, trying username/password")
+        
+        # Try username/password authentication
+        if self.config.uses_credentials:
+            logger.info("Attempting username/password authentication")
+            if self._authenticate_password(db_name):
+                return
+        
+        # Authentication failed
+        raise OdooConnectionError(
+            "Authentication failed. Please check your credentials."
+        )
+    
+    def is_authenticated(self) -> bool:
+        """Check if currently authenticated."""
+        return self._authenticated
+    
+    @property
+    def uid(self) -> Optional[int]:
+        """Get authenticated user ID."""
+        return self._uid
+    
+    @property
+    def database(self) -> Optional[str]:
+        """Get authenticated database name."""
+        return self._database
+    
+    @property
+    def auth_method(self) -> Optional[str]:
+        """Get authentication method used ('api_key' or 'password')."""
+        return self._auth_method
 
 
 @contextmanager
