@@ -7,7 +7,7 @@ to Odoo via XML-RPC using MCP-specific endpoints.
 import xmlrpc.client
 import socket
 import logging
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, List
 from urllib.parse import urlparse, urlunparse
 from contextlib import contextmanager
 
@@ -301,6 +301,152 @@ class OdooConnection:
             self.disconnect()
         except Exception:
             pass
+    
+    def list_databases(self) -> List[str]:
+        """List all available databases on the Odoo server.
+        
+        Returns:
+            List of database names
+            
+        Raises:
+            OdooConnectionError: If listing fails or not connected
+        """
+        if not self._connected:
+            raise OdooConnectionError("Not connected to Odoo")
+        
+        try:
+            # Call list_db method on database proxy
+            databases = self.db_proxy.list()
+            logger.info(f"Found {len(databases)} databases: {databases}")
+            return databases
+        except Exception as e:
+            logger.error(f"Failed to list databases: {e}")
+            raise OdooConnectionError(f"Failed to list databases: {e}")
+    
+    def database_exists(self, db_name: str) -> bool:
+        """Check if a specific database exists.
+        
+        Args:
+            db_name: Name of the database to check
+            
+        Returns:
+            True if database exists, False otherwise
+            
+        Raises:
+            OdooConnectionError: If check fails
+        """
+        try:
+            databases = self.list_databases()
+            return db_name in databases
+        except Exception as e:
+            logger.error(f"Failed to check database existence: {e}")
+            raise OdooConnectionError(f"Failed to check database existence: {e}")
+    
+    def auto_select_database(self) -> str:
+        """Automatically select an appropriate database.
+        
+        Selection logic:
+        1. If config.database is set, validate and use it
+        2. If only one database exists, use it
+        3. If multiple databases exist and one is named 'odoo', use it
+        4. Otherwise raise an error
+        
+        Returns:
+            Selected database name
+            
+        Raises:
+            OdooConnectionError: If no suitable database can be selected
+        """
+        # If database is explicitly configured, validate and use it
+        if self.config.database:
+            db_name = self.config.database
+            logger.info(f"Using configured database: {db_name}")
+            
+            if not self.database_exists(db_name):
+                raise OdooConnectionError(
+                    f"Configured database '{db_name}' does not exist on server"
+                )
+            
+            return db_name
+        
+        # List available databases
+        try:
+            databases = self.list_databases()
+        except Exception as e:
+            raise OdooConnectionError(f"Failed to list databases for auto-selection: {e}")
+        
+        # Handle different scenarios
+        if not databases:
+            raise OdooConnectionError("No databases found on Odoo server")
+        
+        if len(databases) == 1:
+            db_name = databases[0]
+            logger.info(f"Auto-selected only available database: {db_name}")
+            return db_name
+        
+        # Multiple databases - check for 'odoo'
+        if 'odoo' in databases:
+            logger.info("Auto-selected 'odoo' database from multiple options")
+            return 'odoo'
+        
+        # Cannot auto-select
+        raise OdooConnectionError(
+            f"Cannot auto-select database. Found {len(databases)} databases: "
+            f"{', '.join(databases)}. Please specify ODOO_DB in configuration."
+        )
+    
+    def validate_database_access(self, db_name: str) -> bool:
+        """Validate that we can access the specified database.
+        
+        This method attempts to authenticate with the database to verify access.
+        
+        Args:
+            db_name: Name of the database to validate
+            
+        Returns:
+            True if database is accessible, False otherwise
+            
+        Raises:
+            OdooConnectionError: If validation fails
+        """
+        if not self._connected:
+            raise OdooConnectionError("Not connected to Odoo")
+        
+        try:
+            # For API key auth, we'll need to implement a different check
+            # For now, we just verify the database exists
+            if self.config.uses_api_key:
+                # API key validation would be done during actual authentication
+                return self.database_exists(db_name)
+            
+            # For username/password auth, try to authenticate
+            if self.config.uses_credentials:
+                # Try to authenticate with the database
+                # This will fail if we don't have access
+                uid = self.common_proxy.authenticate(
+                    db_name, 
+                    self.config.username, 
+                    self.config.password,
+                    {}
+                )
+                if uid:
+                    logger.info(f"Successfully validated access to database '{db_name}'")
+                    return True
+                else:
+                    logger.warning(f"Authentication failed for database '{db_name}'")
+                    return False
+            
+            # Should not reach here due to config validation
+            raise OdooConnectionError("No authentication method configured")
+            
+        except xmlrpc.client.Fault as e:
+            logger.error(f"XML-RPC fault validating database access: {e}")
+            if "Access Denied" in str(e):
+                return False
+            raise OdooConnectionError(f"Failed to validate database access: {e}")
+        except Exception as e:
+            logger.error(f"Error validating database access: {e}")
+            raise OdooConnectionError(f"Failed to validate database access: {e}")
 
 
 @contextmanager
