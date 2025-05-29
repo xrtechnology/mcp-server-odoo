@@ -2,20 +2,29 @@
 
 A Model Context Protocol (MCP) server that provides AI assistants with secure access to Odoo ERP systems. This server acts as a bridge between AI tools and Odoo, enabling read and write operations on Odoo data while respecting the configured access controls.
 
+**Note**: This package is currently in development. The MCP protocol implementation is not yet complete.
+
 ## Features
 
-- **Secure Authentication**: Supports both API key and username/password authentication
-- **Model Access Control**: Fine-grained control over which Odoo models are accessible
-- **MCP Protocol Compliance**: Full implementation of the Model Context Protocol for AI integration
-- **Environment-Based Configuration**: Easy setup using environment variables
-- **Comprehensive Error Handling**: Clear error messages and proper error categorization
-- **Type-Safe Implementation**: Built with Python type hints for reliability
+### Implemented
+- **Dual Authentication**: Supports both API key and username/password authentication
+- **Database Discovery**: Automatic database detection with intelligent selection
+- **XML-RPC Communication**: Full XML-RPC integration via MCP-specific endpoints
+- **Model Access Control**: Integration with Odoo MCP module for permission checking
+- **Environment Configuration**: Easy setup using `.env` files
+- **Connection Management**: Robust connection handling with health checks
+- **Comprehensive Testing**: 89% test coverage with unit and integration tests
+
+### In Progress
+- **MCP Protocol Implementation**: FastMCP server implementation
+- **Resource URI Handling**: Support for odoo:// URI scheme
+- **Data Formatting**: Field-type specific formatting for AI consumption
 
 ## Prerequisites
 
 - Python 3.10 or higher
-- Access to an Odoo instance (16.0+ recommended)
-- The Odoo MCP module installed on your Odoo server (see `mcp_server`)
+- Access to an Odoo instance (18.0+ recommended)
+- The Odoo MCP module installed on your Odoo server (see `/odoo-apps/mcp_server`)
 - An API key generated in Odoo (Settings > Users > API Keys)
 
 ## Installation
@@ -65,33 +74,55 @@ uv pip install -e ".[dev]"
 
 ### Running the Server
 
-```bash
-# Using uvx (recommended for isolated execution)
-uvx mcp-server-odoo
+**Note**: The MCP server implementation is not yet complete. The following shows current capabilities:
 
-# Or using Python module
+```bash
+# Test connection and authentication
 python -m mcp_server_odoo
 
 # With custom environment file
-ODOO_ENV_FILE=/path/to/.env uvx mcp-server-odoo
+ODOO_ENV_FILE=/path/to/.env python -m mcp_server_odoo
 ```
+
+### Current Capabilities
+
+The package currently provides:
+
+1. **Connection Management**:
+   ```python
+   from mcp_server_odoo import OdooConnection, load_config
+   
+   config = load_config()
+   with OdooConnection(config) as conn:
+       conn.authenticate()
+       
+       # Search for partners
+       partner_ids = conn.search("res.partner", [["is_company", "=", True]])
+       
+       # Read partner data
+       partners = conn.read("res.partner", partner_ids, ["name", "email"])
+   ```
+
+2. **Access Control**:
+   ```python
+   from mcp_server_odoo import AccessController
+   
+   controller = AccessController(config)
+   
+   # Check if model is enabled
+   if controller.is_model_enabled("res.partner"):
+       # Check specific operation
+       allowed, msg = controller.check_operation_allowed("res.partner", "read")
+   ```
 
 ### Testing with MCP Inspector
 
-The MCP Inspector allows you to test the server's functionality interactively:
+The MCP Inspector integration is planned but not yet available:
 
 ```bash
+# Coming soon
 npx @modelcontextprotocol/inspector uvx --from . mcp-server-odoo
 ```
-
-### Integration with AI Assistants
-
-Once running, the server provides resources that AI assistants can access:
-
-- **Individual Records**: `odoo://res.partner/record/1`
-- **Search Operations**: `odoo://res.partner/search?domain=[["is_company","=",true]]`
-- **Browse Multiple Records**: `odoo://res.partner/browse?ids=1,2,3`
-- **Model Information**: `odoo://res.partner/fields`
 
 ## Development
 
@@ -101,14 +132,21 @@ Once running, the server provides resources that AI assistants can access:
 mcp-server-odoo/
 ├── mcp_server_odoo/
 │   ├── __init__.py
-│   ├── __main__.py        # Entry point for uvx execution
-│   ├── server.py          # FastMCP server implementation
-│   └── config.py          # Configuration management
+│   ├── __main__.py             # Entry point
+│   ├── server.py               # FastMCP server (in progress)
+│   ├── config.py               # Configuration management
+│   ├── odoo_connection.py      # Odoo XML-RPC connection
+│   └── access_control.py       # Model access control
 ├── tests/
-│   ├── test_package_structure.py
-│   └── test_config.py
-├── .env.example           # Example configuration
-├── pyproject.toml         # Package configuration
+│   ├── test_config.py
+│   ├── test_odoo_connection_basic.py
+│   ├── test_database_discovery.py
+│   ├── test_authentication.py
+│   ├── test_xmlrpc_operations.py
+│   ├── test_access_control.py
+│   └── test_package_structure.py
+├── .env.example                # Example configuration
+├── pyproject.toml              # Package configuration
 └── README.md
 ```
 
@@ -145,17 +183,23 @@ uv run black . && uv run ruff check . && uv run mypy .
 
 The MCP Server for Odoo consists of two main components:
 
-1. **Odoo Module** (`mcp_server`): Installed on your Odoo server, this module provides:
+1. **Odoo Module** (`/odoo-apps/mcp_server`): Installed on your Odoo server (18.0+), this module provides:
    - Configuration interface for enabling models and setting permissions
-   - Security groups for access control
-   - REST and XML-RPC endpoints for MCP communication
-   - Audit logging capabilities
+   - Security groups (MCP Administrator, MCP User) for access control
+   - REST API endpoints:
+     - `/mcp/health` - Health check
+     - `/mcp/auth/validate` - API key validation
+     - `/mcp/models` - List enabled models
+     - `/mcp/models/{model}/access` - Check model permissions
+   - XML-RPC endpoints with MCP-specific access controls:
+     - `/mcp/xmlrpc/common` - Authentication
+     - `/mcp/xmlrpc/db` - Database operations
+     - `/mcp/xmlrpc/object` - Model operations
 
-2. **Python Package** (this package): Runs separately and connects to Odoo via the MCP endpoints:
-   - Implements the Model Context Protocol
-   - Handles authentication and connection management
-   - Formats Odoo data for AI consumption
-   - Provides resource URIs for accessing Odoo data
+2. **Python Package** (this package): Runs separately and connects to Odoo:
+   - **Implemented**: Connection management, authentication, XML-RPC operations, access control
+   - **In Progress**: MCP protocol implementation via FastMCP
+   - **Planned**: Resource URI handling, data formatting for AI consumption
 
 ## Security Considerations
 
@@ -170,17 +214,56 @@ The MCP Server for Odoo consists of two main components:
 
 ### Common Issues
 
-1. **Connection Failed**: Ensure Odoo is running and the URL is correct
-2. **Authentication Error**: Verify your API key or credentials are valid
-3. **Model Not Found**: Check that the model is enabled in Odoo MCP settings
-4. **Permission Denied**: Ensure your user has appropriate permissions in Odoo
+1. **Connection Failed**: 
+   - Ensure Odoo is running and accessible
+   - Verify the URL in your `.env` file
+   - Check that MCP endpoints are available (test with `/mcp/health`)
+
+2. **Authentication Error**: 
+   - Verify your API key is valid and active in Odoo
+   - For username/password auth, ensure credentials are correct
+   - API key must have appropriate scope (read/write)
+
+3. **Model Not Found**: 
+   - Check that the model is enabled in Odoo MCP settings
+   - Navigate to Settings > MCP Server > Enabled Models in Odoo
+   - Ensure the model name is spelled correctly (e.g., `res.partner`)
+
+4. **Permission Denied**: 
+   - Verify the model has the required operation enabled (read/write/create/unlink)
+   - Check user's security group (MCP User or MCP Administrator)
+   - Review model-specific permissions in Odoo
 
 ### Debug Mode
 
 Enable debug logging for more detailed information:
 
 ```bash
-ODOO_MCP_LOG_LEVEL=DEBUG uvx mcp-server-odoo
+ODOO_MCP_LOG_LEVEL=DEBUG python -m mcp_server_odoo
+```
+
+### Testing Connection
+
+Test your setup with this simple script:
+
+```python
+from mcp_server_odoo import OdooConnection, AccessController, load_config
+
+# Load configuration
+config = load_config()
+
+# Test connection and authentication
+with OdooConnection(config) as conn:
+    print("✓ Connected to Odoo")
+    
+    conn.authenticate()
+    print(f"✓ Authenticated as user ID: {conn.uid}")
+    print(f"✓ Using database: {conn.database}")
+    
+    # Test access control
+    controller = AccessController(config)
+    models = controller.get_enabled_models()
+    print(f"✓ Found {len(models)} enabled models")
 ```
 
 ## License

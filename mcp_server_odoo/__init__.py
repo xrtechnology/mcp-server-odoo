@@ -5,5 +5,19 @@ __author__ = "Andrey Ivanov"
 __license__ = "MPL-2.0"
 
 from .server import OdooMCPServer
+from .config import OdooConfig, load_config
+from .odoo_connection import OdooConnection, OdooConnectionError, create_connection
+from .access_control import AccessController, AccessControlError, ModelPermissions
 
-__all__ = ["OdooMCPServer", "__version__"]
+__all__ = [
+    "OdooMCPServer",
+    "OdooConfig",
+    "load_config",
+    "OdooConnection",
+    "OdooConnectionError",
+    "create_connection",
+    "AccessController",
+    "AccessControlError",
+    "ModelPermissions",
+    "__version__",
+]
