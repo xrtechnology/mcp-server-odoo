@@ -605,6 +605,161 @@ class OdooConnection:
     def auth_method(self) -> Optional[str]:
         """Get authentication method used ('api_key' or 'password')."""
         return self._auth_method
+    
+    def execute(self, model: str, method: str, *args) -> Any:
+        """Execute an operation on an Odoo model.
+        
+        This is a simplified interface that calls execute_kw with empty kwargs.
+        
+        Args:
+            model: The Odoo model name (e.g., 'res.partner')
+            method: The method to call (e.g., 'search', 'read')
+            *args: Arguments to pass to the method
+            
+        Returns:
+            The result from Odoo
+            
+        Raises:
+            OdooConnectionError: If not authenticated or execution fails
+        """
+        return self.execute_kw(model, method, list(args), {})
+    
+    def execute_kw(self, model: str, method: str, args: List[Any], kwargs: Dict[str, Any]) -> Any:
+        """Execute an operation on an Odoo model with keyword arguments.
+        
+        This is the main method for interacting with Odoo models via XML-RPC.
+        
+        Args:
+            model: The Odoo model name (e.g., 'res.partner')
+            method: The method to call (e.g., 'search_read')
+            args: List of positional arguments for the method
+            kwargs: Dictionary of keyword arguments for the method
+            
+        Returns:
+            The result from Odoo
+            
+        Raises:
+            OdooConnectionError: If not authenticated or execution fails
+        """
+        if not self._authenticated:
+            raise OdooConnectionError("Not authenticated. Call authenticate() first.")
+        
+        if not self._connected:
+            raise OdooConnectionError("Not connected to Odoo")
+        
+        # Get the appropriate password/token based on auth method
+        password_or_token = (
+            self.config.api_key if self._auth_method == 'api_key' 
+            else self.config.password
+        )
+        
+        try:
+            # Log the operation
+            logger.debug(
+                f"Executing {method} on {model} with args={args}, kwargs={kwargs}"
+            )
+            
+            # Execute via object proxy
+            result = self.object_proxy.execute_kw(
+                self._database,
+                self._uid,
+                password_or_token,
+                model,
+                method,
+                args,
+                kwargs
+            )
+            
+            logger.debug(f"Operation completed successfully")
+            return result
+            
+        except xmlrpc.client.Fault as e:
+            logger.error(f"XML-RPC fault during {method} on {model}: {e}")
+            raise OdooConnectionError(
+                f"Failed to execute {method} on {model}: {e.faultString}"
+            )
+        except socket.timeout:
+            logger.error(f"Timeout during {method} on {model}")
+            raise OdooConnectionError(
+                f"Operation timeout after {self.timeout} seconds"
+            )
+        except Exception as e:
+            logger.error(f"Error during {method} on {model}: {e}")
+            raise OdooConnectionError(
+                f"Failed to execute {method} on {model}: {e}"
+            )
+    
+    def search(self, model: str, domain: List[List[Any]], **kwargs) -> List[int]:
+        """Search for records matching a domain.
+        
+        Args:
+            model: The Odoo model name
+            domain: Odoo domain filter (e.g., [['is_company', '=', True]])
+            **kwargs: Additional parameters (limit, offset, order)
+            
+        Returns:
+            List of record IDs matching the domain
+        """
+        return self.execute_kw(model, 'search', [domain], kwargs)
+    
+    def read(self, model: str, ids: List[int], fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Read records by IDs.
+        
+        Args:
+            model: The Odoo model name
+            ids: List of record IDs to read
+            fields: List of field names to read (None for all fields)
+            
+        Returns:
+            List of dictionaries containing record data
+        """
+        kwargs = {}
+        if fields:
+            kwargs['fields'] = fields
+        return self.execute_kw(model, 'read', [ids], kwargs)
+    
+    def search_read(self, model: str, domain: List[List[Any]], fields: Optional[List[str]] = None, **kwargs) -> List[Dict[str, Any]]:
+        """Search for records and read their data in one operation.
+        
+        Args:
+            model: The Odoo model name
+            domain: Odoo domain filter
+            fields: List of field names to read (None for all fields)
+            **kwargs: Additional parameters (limit, offset, order)
+            
+        Returns:
+            List of dictionaries containing record data
+        """
+        if fields:
+            kwargs['fields'] = fields
+        return self.execute_kw(model, 'search_read', [domain], kwargs)
+    
+    def fields_get(self, model: str, attributes: Optional[List[str]] = None) -> Dict[str, Dict[str, Any]]:
+        """Get field definitions for a model.
+        
+        Args:
+            model: The Odoo model name
+            attributes: List of field attributes to return
+            
+        Returns:
+            Dictionary mapping field names to their definitions
+        """
+        kwargs = {}
+        if attributes:
+            kwargs['attributes'] = attributes
+        return self.execute_kw(model, 'fields_get', [], kwargs)
+    
+    def search_count(self, model: str, domain: List[List[Any]]) -> int:
+        """Count records matching a domain.
+        
+        Args:
+            model: The Odoo model name
+            domain: Odoo domain filter
+            
+        Returns:
+            Number of records matching the domain
+        """
+        return self.execute_kw(model, 'search_count', [domain], {})
 
 
 @contextmanager
