@@ -377,7 +377,12 @@ class TestXMLRPCOperationsIntegration:
     def test_real_execute_method(self, real_config):
         """Test generic execute method on real server."""
         with OdooConnection(real_config) as conn:
-            conn.authenticate()
+            try:
+                conn.authenticate()
+            except OdooConnectionError as e:
+                if "429" in str(e) or "Too many requests" in str(e).lower():
+                    pytest.skip("Rate limited by server")
+                raise
             
             # Use execute to call name_search
             result = conn.execute(
@@ -395,7 +400,12 @@ class TestXMLRPCOperationsIntegration:
     def test_real_error_handling(self, real_config):
         """Test error handling with real server."""
         with OdooConnection(real_config) as conn:
-            conn.authenticate()
+            try:
+                conn.authenticate()
+            except OdooConnectionError as e:
+                if "429" in str(e) or "Too many requests" in str(e).lower():
+                    pytest.skip("Rate limited by server")
+                raise
             
             # Try to access non-existent model
             with pytest.raises(OdooConnectionError):

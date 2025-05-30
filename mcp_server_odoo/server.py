@@ -109,7 +109,8 @@ class OdooMCPServer:
             self.resource_handler = register_resources(
                 self.app,
                 self.connection,
-                self.access_controller
+                self.access_controller,
+                self.config
             )
             logger.info("Registered MCP resources")
     

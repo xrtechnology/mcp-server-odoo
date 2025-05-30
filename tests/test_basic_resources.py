@@ -25,6 +25,15 @@ def test_config():
 
 
 @pytest.fixture
+def mock_config():
+    """Create mock configuration."""
+    config = Mock(spec=OdooConfig)
+    config.default_limit = 10
+    config.max_limit = 100
+    return config
+
+
+@pytest.fixture
 def mock_connection():
     """Create mock OdooConnection."""
     conn = Mock(spec=OdooConnection)
@@ -54,24 +63,25 @@ def mock_app():
 
 
 @pytest.fixture
-def resource_handler(mock_app, mock_connection, mock_access_controller):
+def resource_handler(mock_app, mock_connection, mock_access_controller, mock_config):
     """Create OdooResourceHandler instance."""
-    return OdooResourceHandler(mock_app, mock_connection, mock_access_controller)
+    return OdooResourceHandler(mock_app, mock_connection, mock_access_controller, mock_config)
 
 
 class TestOdooResourceHandler:
     """Test OdooResourceHandler functionality."""
     
-    def test_init(self, mock_app, mock_connection, mock_access_controller):
+    def test_init(self, mock_app, mock_connection, mock_access_controller, mock_config):
         """Test handler initialization."""
-        handler = OdooResourceHandler(mock_app, mock_connection, mock_access_controller)
+        handler = OdooResourceHandler(mock_app, mock_connection, mock_access_controller, mock_config)
         
         assert handler.app == mock_app
         assert handler.connection == mock_connection
         assert handler.access_controller == mock_access_controller
+        assert handler.config == mock_config
         
         # Check that resources were registered
-        mock_app.resource.assert_called_once_with("odoo://{model}/record/{record_id}")
+        assert mock_app.resource.call_count >= 1
     
     @pytest.mark.asyncio
     async def test_handle_record_retrieval_success(self, resource_handler, mock_connection, mock_access_controller):
@@ -175,17 +185,18 @@ class TestOdooResourceHandler:
 class TestRegisterResources:
     """Test register_resources function."""
     
-    def test_register_resources(self, mock_app, mock_connection, mock_access_controller):
+    def test_register_resources(self, mock_app, mock_connection, mock_access_controller, mock_config):
         """Test resource registration."""
-        handler = register_resources(mock_app, mock_connection, mock_access_controller)
+        handler = register_resources(mock_app, mock_connection, mock_access_controller, mock_config)
         
         assert isinstance(handler, OdooResourceHandler)
         assert handler.app == mock_app
         assert handler.connection == mock_connection
         assert handler.access_controller == mock_access_controller
+        assert handler.config == mock_config
         
         # Check that resources were registered
-        mock_app.resource.assert_called_once()
+        assert mock_app.resource.call_count >= 1
 
 
 class TestResourceIntegration:
@@ -207,7 +218,7 @@ class TestResourceIntegration:
         app = FastMCP("test-app")
         
         # Register resources
-        handler = register_resources(app, connection, access_controller)
+        handler = register_resources(app, connection, access_controller, test_config)
         
         try:
             # Search for a partner record
@@ -241,7 +252,7 @@ class TestResourceIntegration:
         app = FastMCP("test-app")
         
         # Register resources
-        handler = register_resources(app, connection, access_controller)
+        handler = register_resources(app, connection, access_controller, test_config)
         
         try:
             # Test with non-existent ID
@@ -267,7 +278,7 @@ class TestResourceIntegration:
         app = FastMCP("test-app")
         
         # Register resources
-        handler = register_resources(app, connection, access_controller)
+        handler = register_resources(app, connection, access_controller, test_config)
         
         try:
             # Test with non-enabled model

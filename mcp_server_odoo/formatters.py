@@ -312,8 +312,13 @@ class DatasetFormatter:
                             fields: Optional[List[str]] = None,
                             limit: Optional[int] = None,
                             offset: Optional[int] = None,
-                            total_count: Optional[int] = None) -> str:
-        """Format search results with context.
+                            total_count: Optional[int] = None,
+                            fields_metadata: Optional[Dict[str, Any]] = None,
+                            next_uri: Optional[str] = None,
+                            prev_uri: Optional[str] = None,
+                            current_page: Optional[int] = None,
+                            total_pages: Optional[int] = None) -> str:
+        """Format search results with context and pagination.
         
         Args:
             records: List of record dictionaries
@@ -322,9 +327,14 @@ class DatasetFormatter:
             limit: Limit used in search
             offset: Offset used in search
             total_count: Total count of matching records
+            fields_metadata: Optional field metadata for rich formatting
+            next_uri: URI for next page of results
+            prev_uri: URI for previous page of results
+            current_page: Current page number
+            total_pages: Total number of pages
             
         Returns:
-            Formatted search results
+            Formatted search results with pagination
         """
         lines = [
             f"{'='*60}",
@@ -336,9 +346,12 @@ class DatasetFormatter:
         if domain:
             lines.append(f"Search criteria: {self._format_domain(domain)}")
         
+        # Add pagination info
         if total_count is not None:
             showing = len(records)
-            if offset:
+            if current_page and total_pages:
+                lines.append(f"Page {current_page} of {total_pages}")
+            if offset is not None:
                 lines.append(f"Showing records {offset+1}-{offset+showing} of {total_count}")
             else:
                 lines.append(f"Showing {showing} of {total_count} records")
@@ -369,15 +382,23 @@ class DatasetFormatter:
                 
                 lines.append("")
         
-        # Add navigation hints
-        if total_count and total_count > len(records):
-            if offset and offset > 0:
-                prev_offset = max(0, offset - limit) if limit else 0
-                lines.append(f"← Previous page: offset={prev_offset}")
-            
-            if limit and offset is not None and (offset + len(records)) < total_count:
-                next_offset = offset + limit
-                lines.append(f"→ Next page: offset={next_offset}")
+        # Add navigation links
+        navigation = []
+        if prev_uri:
+            navigation.append(f"← Previous page: {prev_uri}")
+        if next_uri:
+            navigation.append(f"→ Next page: {next_uri}")
+        
+        if navigation:
+            lines.append("\nNavigation:")
+            lines.extend(navigation)
+        
+        # Add summary statistics for large datasets
+        if total_count and total_count > 100:
+            lines.append("\nDataset Summary:")
+            lines.append(f"Total records: {total_count:,}")
+            if domain:
+                lines.append("Use additional filters to refine results")
         
         return '\n'.join(lines)
     

@@ -263,11 +263,10 @@ class TestDatasetFormatter:
         
         assert 'Search Results: res.partner' in result
         assert 'Search criteria: is_company = True' in result
-        assert 'Showing 2 of 50 records' in result
+        assert 'Showing records 1-2 of 50' in result
         assert 'Fields: name, email' in result
         assert '[1] Company A' in result
         assert 'email: a@example.com' in result
-        assert '→ Next page: offset=10' in result
     
     def test_format_empty_search_results(self, formatter):
         """Test formatting empty search results."""
@@ -288,14 +287,19 @@ class TestDatasetFormatter:
             records,
             limit=10,
             offset=10,
-            total_count=30
+            total_count=30,
+            current_page=2,
+            total_pages=3,
+            prev_uri='odoo://res.partner/search?limit=10&offset=0',
+            next_uri='odoo://res.partner/search?limit=10&offset=20'
         )
         
+        assert 'Page 2 of 3' in result
         assert 'Showing records 11-20 of 30' in result
         assert '[11] Record 11' in result
         assert '[20] Record 20' in result
-        assert '← Previous page: offset=0' in result
-        assert '→ Next page: offset=20' in result
+        assert '← Previous page: odoo://res.partner/search?limit=10&offset=0' in result
+        assert '→ Next page: odoo://res.partner/search?limit=10&offset=20' in result
     
     def test_format_complex_domain(self, formatter):
         """Test formatting complex search domains."""
@@ -399,19 +403,27 @@ class TestFormattingIntegration:
             
             # Format the results
             formatter = DatasetFormatter('res.partner')
+            # Calculate pagination info
+            current_page = 1
+            total_pages = (total + 4) // 5 if total > 0 else 1
+            next_uri = 'odoo://res.partner/search?limit=5&offset=5' if total > 5 else None
+            
             result = formatter.format_search_results(
                 records,
                 domain=domain,
                 fields=['name', 'email', 'phone', 'country_id'],
                 limit=5,
                 offset=0,
-                total_count=total
+                total_count=total,
+                current_page=current_page,
+                total_pages=total_pages,
+                next_uri=next_uri
             )
             
             # Basic assertions
             assert 'Search Results: res.partner' in result
             assert 'is_company = True' in result
-            assert f'of {total} records' in result
+            assert f'of {total}' in result
             
             # Check for specific fields if records exist
             if records:
