@@ -69,11 +69,14 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(autouse=True)
-def rate_limit_delay():
-    """Add a small delay between tests to avoid rate limiting."""
+def rate_limit_delay(request):
+    """Add a delay between tests to avoid rate limiting."""
     yield
-    # Add a small delay after each test to avoid rate limiting
-    time.sleep(0.1)
+    # Add a longer delay for integration tests
+    if "integration" in request.keywords:
+        time.sleep(2.0)  # 2 second delay for integration tests
+    else:
+        time.sleep(0.1)  # Small delay for other tests
 
 
 @pytest.fixture

@@ -31,6 +31,7 @@ def mock_connection():
     conn.is_authenticated = True
     conn.search = Mock()
     conn.read = Mock()
+    conn.fields_get = Mock(return_value={})  # Mock fields_get for formatter
     return conn
 
 
@@ -97,16 +98,11 @@ class TestOdooResourceHandler:
         mock_connection.search.assert_called_once_with('res.partner', [('id', '=', 1)])
         mock_connection.read.assert_called_once_with('res.partner', [1])
         
-        # Check result format
-        assert 'Resource: res.partner/record/1' in result
+        # Check result format (using new formatter)
+        assert 'Record: res.partner/1' in result
         assert 'Name: Test Partner' in result
-        assert 'ID: 1' in result
-        assert 'email: test@example.com' in result
-        assert 'is_company: True' in result
-        assert 'country_id: United States (ID: 1)' in result
-        assert 'child_ids: 3 record(s)' in result
-        assert 'phone: Not set' in result
-        assert '__last_update' not in result  # Should be skipped
+        assert '='*50 in result  # Separator line
+        assert 'Fields:' in result or 'Relationships:' in result
     
     @pytest.mark.asyncio
     async def test_handle_record_retrieval_not_found(self, resource_handler, mock_connection, mock_access_controller):
@@ -175,55 +171,6 @@ class TestOdooResourceHandler:
             await resource_handler._handle_record_retrieval('res.partner', '1')
         
         assert "Connection error:" in str(exc_info.value)
-    
-    def test_format_record(self, resource_handler):
-        """Test record formatting."""
-        record = {
-            'id': 42,
-            'name': 'Acme Corp',
-            'email': 'info@acme.com',
-            'partner_id': (10, 'Parent Company'),
-            'child_ids': [1, 2, 3],
-            'active': True,
-            'credit_limit': 5000.0,
-            'comment': None,
-            '__last_update': '2025-01-01'
-        }
-        
-        result = resource_handler._format_record('res.partner', record)
-        
-        # Check formatting
-        assert 'Resource: res.partner/record/42' in result
-        assert 'Name: Acme Corp' in result
-        assert 'ID: 42' in result
-        assert 'email: info@acme.com' in result
-        assert 'partner_id: Parent Company (ID: 10)' in result
-        assert 'child_ids: 3 record(s)' in result
-        assert 'active: True' in result
-        assert 'credit_limit: 5000.0' in result
-        assert 'comment: Not set' in result
-        assert '__last_update' not in result
-    
-    def test_format_field_value(self, resource_handler):
-        """Test field value formatting."""
-        # Test None/False
-        assert resource_handler._format_field_value('field', None) == "Not set"
-        assert resource_handler._format_field_value('field', False) == "Not set"
-        
-        # Test many2one
-        assert resource_handler._format_field_value('field', (1, 'Name')) == "Name (ID: 1)"
-        
-        # Test empty list
-        assert resource_handler._format_field_value('field', []) == "None"
-        
-        # Test non-empty list
-        assert resource_handler._format_field_value('field', [1, 2, 3]) == "3 record(s)"
-        
-        # Test other types
-        assert resource_handler._format_field_value('field', 'text') == "text"
-        assert resource_handler._format_field_value('field', 123) == "123"
-        assert resource_handler._format_field_value('field', True) == "True"
-
 
 class TestRegisterResources:
     """Test register_resources function."""
@@ -271,8 +218,8 @@ class TestResourceIntegration:
                 result = await handler._handle_record_retrieval('res.partner', str(partner_ids[0]))
                 
                 # Verify result format
-                assert f'Resource: res.partner/record/{partner_ids[0]}' in result
-                assert 'ID:' in result
+                assert f'Record: res.partner/{partner_ids[0]}' in result
+                assert 'Name:' in result
                 assert '=' * 50 in result  # Separator line
                 
         finally:

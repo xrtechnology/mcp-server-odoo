@@ -12,6 +12,7 @@ from mcp.types import TextContent
 from .uri_schema import parse_uri, OdooOperation, URIError
 from .odoo_connection import OdooConnection, OdooConnectionError
 from .access_control import AccessController, AccessControlError
+from .formatters import RecordFormatter
 
 
 logger = logging.getLogger(__name__)
@@ -147,59 +148,16 @@ class OdooResourceHandler:
         Returns:
             Formatted text representation
         """
-        lines = []
-        lines.append(f"Resource: {model}/record/{record.get('id', 'unknown')}")
-        lines.append("=" * 50)
+        # Get field metadata if available
+        try:
+            fields_metadata = self.connection.fields_get(model)
+        except Exception as e:
+            logger.debug(f"Could not retrieve field metadata: {e}")
+            fields_metadata = None
         
-        # Get display name if available
-        if 'display_name' in record:
-            lines.append(f"Name: {record['display_name']}")
-        elif 'name' in record:
-            lines.append(f"Name: {record['name']}")
-        
-        # Add ID
-        lines.append(f"ID: {record.get('id', 'unknown')}")
-        
-        # Add other fields
-        skip_fields = {'id', 'name', 'display_name', '__last_update'}
-        
-        for field, value in sorted(record.items()):
-            if field in skip_fields:
-                continue
-            
-            # Format the field value
-            formatted_value = self._format_field_value(field, value)
-            if formatted_value is not None:
-                lines.append(f"{field}: {formatted_value}")
-        
-        return "\n".join(lines)
-    
-    def _format_field_value(self, field: str, value: Any) -> Optional[str]:
-        """Format a field value for display.
-        
-        Args:
-            field: Field name
-            value: Field value
-            
-        Returns:
-            Formatted string or None to skip the field
-        """
-        if value is None or value is False:
-            return "Not set"
-        
-        # Handle many2one fields (tuple of [id, name])
-        if isinstance(value, tuple) and len(value) == 2:
-            return f"{value[1]} (ID: {value[0]})"
-        
-        # Handle one2many and many2many fields (list of IDs)
-        if isinstance(value, list):
-            if not value:
-                return "None"
-            # For now, just show the count
-            return f"{len(value)} record(s)"
-        
-        # Handle other types
-        return str(value)
+        # Use RecordFormatter for rich formatting
+        formatter = RecordFormatter(model)
+        return formatter.format_record(record, fields_metadata)
 
 
 def register_resources(app: FastMCP, connection: OdooConnection, 

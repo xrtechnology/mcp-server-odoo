@@ -58,17 +58,25 @@ class TestServerFoundation:
     
     def test_server_initialization_with_env_config(self, monkeypatch, tmp_path):
         """Test server initialization loading config from environment."""
+        # Reset config singleton first
+        from mcp_server_odoo.config import reset_config
+        reset_config()
+        
         # Set up environment variables
         monkeypatch.setenv("ODOO_URL", "http://test.odoo.com")
         monkeypatch.setenv("ODOO_API_KEY", "env_test_key")
         monkeypatch.setenv("ODOO_DB", "env_test_db")
         
-        # Create server without explicit config
-        server = OdooMCPServer()
-        
-        assert server.config.url == "http://test.odoo.com"
-        assert server.config.api_key == "env_test_key"
-        assert server.config.database == "env_test_db"
+        try:
+            # Create server without explicit config
+            server = OdooMCPServer()
+            
+            assert server.config.url == "http://test.odoo.com"
+            assert server.config.api_key == "env_test_key"
+            assert server.config.database == "env_test_db"
+        finally:
+            # Reset config for other tests
+            reset_config()
     
     def test_server_version(self):
         """Test server version is properly set."""
