@@ -36,8 +36,9 @@ class TestServerFoundation:
         with patch('mcp_server_odoo.server.OdooConnection') as mock_conn_class:
             # Mock the connection class
             mock_connection = Mock()
-            mock_connection.test_connection.return_value = True
-            mock_connection.close.return_value = None
+            mock_connection.connect = Mock()
+            mock_connection.authenticate = Mock()
+            mock_connection.disconnect = Mock()
             mock_conn_class.return_value = mock_connection
             
             server = OdooMCPServer(valid_config)
@@ -82,20 +83,22 @@ class TestServerFoundation:
         
         # Verify connection was created and tested
         server._mock_connection_class.assert_called_once_with(server.config)
-        server._mock_connection.test_connection.assert_called_once()
+        server._mock_connection.connect.assert_called_once()
+        server._mock_connection.authenticate.assert_called_once()
         
         # Verify connection is stored
         assert server.connection == server._mock_connection
+        assert server.access_controller is not None
     
     def test_ensure_connection_failure(self, server_with_mock_connection):
         """Test connection establishment failure."""
         server = server_with_mock_connection
         
-        # Make connection test fail
-        server._mock_connection.test_connection.return_value = False
+        # Make connection fail
+        server._mock_connection.connect.side_effect = OdooConnectionError("Connection failed")
         
         # Ensure connection should raise an error
-        with pytest.raises(OdooConnectionError, match="Failed to connect to Odoo"):
+        with pytest.raises(OdooConnectionError, match="Connection failed"):
             server._ensure_connection()
     
     def test_cleanup_connection(self, server_with_mock_connection):
@@ -110,8 +113,10 @@ class TestServerFoundation:
         server._cleanup_connection()
         
         # Verify connection was closed
-        server._mock_connection.close.assert_called_once()
+        server._mock_connection.disconnect.assert_called_once()
         assert server.connection is None
+        assert server.access_controller is None
+        assert server.resource_handler is None
     
     def test_cleanup_connection_without_connection(self, server_with_mock_connection):
         """Test cleanup when no connection exists."""
@@ -120,26 +125,28 @@ class TestServerFoundation:
         # Should not raise an error
         server._cleanup_connection()
         
-        # Connection close should not be called
-        server._mock_connection.close.assert_not_called()
+        # Connection disconnect should not be called
+        server._mock_connection.disconnect.assert_not_called()
     
     def test_cleanup_connection_with_error(self, server_with_mock_connection):
-        """Test cleanup when close raises an error."""
+        """Test cleanup when disconnect raises an error."""
         server = server_with_mock_connection
         
         # Establish connection first
         server._ensure_connection()
         
-        # Make close raise an error
-        server._mock_connection.close.side_effect = Exception("Close failed")
+        # Make disconnect raise an error
+        server._mock_connection.disconnect.side_effect = Exception("Disconnect failed")
         
         # Should not raise an error (error is logged)
         server._cleanup_connection()
         
-        # Verify close was attempted
-        server._mock_connection.close.assert_called_once()
+        # Verify disconnect was attempted
+        server._mock_connection.disconnect.assert_called_once()
         # Connection should still be cleared
         assert server.connection is None
+        assert server.access_controller is None
+        assert server.resource_handler is None
     
     def test_get_capabilities(self, valid_config):
         """Test get_capabilities method."""
@@ -192,18 +199,31 @@ class TestServerFoundation:
         mock_run = AsyncMock()
         server.app.run_stdio_async = mock_run
         
-        # Run the server
-        await server.run_stdio()
-        
-        # Verify connection was established
-        server._mock_connection_class.assert_called_once_with(server.config)
-        server._mock_connection.test_connection.assert_called_once()
-        
-        # Verify FastMCP was started
-        mock_run.assert_called_once()
-        
-        # Verify connection was cleaned up
-        server._mock_connection.close.assert_called_once()
+        # Mock AccessController and register_resources
+        with patch('mcp_server_odoo.server.AccessController') as mock_access_ctrl:
+            with patch('mcp_server_odoo.server.register_resources') as mock_register:
+                mock_handler = Mock()
+                mock_register.return_value = mock_handler
+                
+                # Run the server
+                await server.run_stdio()
+                
+                # Verify connection was established
+                server._mock_connection_class.assert_called_once_with(server.config)
+                server._mock_connection.connect.assert_called_once()
+                server._mock_connection.authenticate.assert_called_once()
+                
+                # Verify access controller was created
+                mock_access_ctrl.assert_called_once_with(server.config)
+                
+                # Verify resources were registered
+                mock_register.assert_called_once()
+                
+                # Verify FastMCP was started
+                mock_run.assert_called_once()
+                
+                # Verify connection was cleaned up
+                server._mock_connection.disconnect.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_run_stdio_connection_failure(self, server_with_mock_connection):
@@ -211,15 +231,15 @@ class TestServerFoundation:
         server = server_with_mock_connection
         
         # Make connection fail
-        server._mock_connection.test_connection.return_value = False
+        server._mock_connection.connect.side_effect = OdooConnectionError("Failed to connect")
         
         # Should raise an error
-        with pytest.raises(OdooConnectionError, match="Failed to connect to Odoo"):
+        with pytest.raises(OdooConnectionError, match="Failed to connect"):
             await server.run_stdio()
         
         # Connection is created during _ensure_connection(), but cleanup is still called
-        # even when test_connection fails, so close should be called once
-        server._mock_connection.close.assert_called_once()
+        # even when connect fails, so disconnect should be called once
+        server._mock_connection.disconnect.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_run_stdio_keyboard_interrupt(self, server_with_mock_connection):
@@ -233,7 +253,7 @@ class TestServerFoundation:
         await server.run_stdio()
         
         # Verify cleanup was called
-        server._mock_connection.close.assert_called_once()
+        server._mock_connection.disconnect.assert_called_once()
     
     def test_run_stdio_sync(self, server_with_mock_connection):
         """Test run_stdio_sync wrapper method."""

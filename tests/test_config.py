@@ -139,7 +139,8 @@ class TestLoadConfig:
     def test_load_config_from_env_file(self, monkeypatch):
         """Test loading configuration from .env file."""
         # Clear environment variables
-        for key in ["ODOO_URL", "ODOO_API_KEY", "ODOO_USER", "ODOO_PASSWORD"]:
+        for key in ["ODOO_URL", "ODOO_API_KEY", "ODOO_USER", "ODOO_PASSWORD", 
+                   "ODOO_MCP_DEFAULT_LIMIT", "ODOO_MCP_MAX_LIMIT"]:
             monkeypatch.delenv(key, raising=False)
         
         # Create a temporary .env file

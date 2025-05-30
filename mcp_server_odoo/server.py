@@ -11,6 +11,8 @@ from mcp.server import FastMCP
 
 from .config import get_config, OdooConfig
 from .odoo_connection import OdooConnection, OdooConnectionError
+from .access_control import AccessController
+from .resources import register_resources
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -43,17 +45,16 @@ class OdooMCPServer:
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         
-        # Initialize connection (will be created on startup)
+        # Initialize connection and access controller (will be created on startup)
         self.connection: Optional[OdooConnection] = None
+        self.access_controller: Optional[AccessController] = None
+        self.resource_handler = None
         
         # Create FastMCP instance with server metadata
         self.app = FastMCP(
             name="odoo-mcp-server",
             instructions="MCP server for accessing and managing Odoo ERP data through the Model Context Protocol"
         )
-        
-        # Set up MCP handlers (resources, tools, etc.)
-        self._setup_handlers()
         
         logger.info(f"Initialized Odoo MCP Server v{SERVER_VERSION}")
     
@@ -67,22 +68,28 @@ class OdooMCPServer:
             logger.info("Establishing connection to Odoo...")
             self.connection = OdooConnection(self.config)
             
-            if not self.connection.test_connection():
-                raise OdooConnectionError("Failed to connect to Odoo")
+            # Connect and authenticate
+            self.connection.connect()
+            self.connection.authenticate()
             
             logger.info(f"Successfully connected to Odoo at {self.config.url}")
+            
+            # Initialize access controller
+            self.access_controller = AccessController(self.config)
     
     def _cleanup_connection(self):
         """Clean up Odoo connection."""
         if self.connection:
             try:
                 logger.info("Closing Odoo connection...")
-                self.connection.close()
+                self.connection.disconnect()
             except Exception as e:
                 logger.error(f"Error closing connection: {e}")
             finally:
                 # Always clear connection reference
                 self.connection = None
+                self.access_controller = None
+                self.resource_handler = None
     
     def _setup_handlers(self):
         """Set up MCP handlers for resources, tools, and prompts.
@@ -92,10 +99,19 @@ class OdooMCPServer:
         - Tool handlers for Odoo operations
         - Prompt handlers for guided workflows
         """
-        # Resources will be added in Step 10.2
         # Tools will be added in Phase 3
         # Prompts will be added in Phase 4
         pass
+    
+    def _register_resources(self):
+        """Register resource handlers after connection is established."""
+        if self.connection and self.access_controller:
+            self.resource_handler = register_resources(
+                self.app,
+                self.connection,
+                self.access_controller
+            )
+            logger.info("Registered MCP resources")
     
     async def run_stdio(self):
         """Run the server using stdio transport.
@@ -106,6 +122,9 @@ class OdooMCPServer:
         try:
             # Establish connection before starting server
             self._ensure_connection()
+            
+            # Register resources after connection is established
+            self._register_resources()
             
             logger.info("Starting MCP server with stdio transport...")
             await self.app.run_stdio_async()

@@ -2,6 +2,7 @@
 
 import os
 import socket
+import time
 import pytest
 import xmlrpc.client
 from typing import Generator
@@ -65,6 +66,14 @@ def pytest_collection_modifyitems(config, items):
         test_name = item.name.lower()
         if any(keyword in test_name for keyword in ["real_server", "integration"]):
             item.add_marker(skip_odoo)
+
+
+@pytest.fixture(autouse=True)
+def rate_limit_delay():
+    """Add a small delay between tests to avoid rate limiting."""
+    yield
+    # Add a small delay after each test to avoid rate limiting
+    time.sleep(0.1)
 
 
 @pytest.fixture
