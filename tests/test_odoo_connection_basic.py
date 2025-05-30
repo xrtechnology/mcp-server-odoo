@@ -113,6 +113,7 @@ class TestOdooConnectionInit:
 class TestOdooConnectionConnect:
     """Test connection establishment."""
     
+    @pytest.mark.odoo_required
     def test_connect_success(self, test_config):
         """Test successful connection to real Odoo server."""
         conn = OdooConnection(test_config)
@@ -126,6 +127,7 @@ class TestOdooConnectionConnect:
         finally:
             conn.disconnect()
     
+    @pytest.mark.odoo_required
     def test_connect_already_connected(self, test_config, caplog):
         """Test connecting when already connected."""
         conn = OdooConnection(test_config)
@@ -167,6 +169,7 @@ class TestOdooConnectionConnect:
 class TestOdooConnectionDisconnect:
     """Test connection cleanup."""
     
+    @pytest.mark.odoo_required
     def test_disconnect_when_connected(self, test_config):
         """Test normal disconnect."""
         conn = OdooConnection(test_config)
@@ -187,6 +190,7 @@ class TestOdooConnectionDisconnect:
         conn.disconnect()
         assert "Not connected to Odoo" in caplog.text
     
+    @pytest.mark.odoo_required
     def test_disconnect_cleanup_on_del(self, test_config):
         """Test cleanup on object deletion."""
         conn = OdooConnection(test_config)
@@ -199,6 +203,7 @@ class TestOdooConnectionDisconnect:
 class TestOdooConnectionHealth:
     """Test health checking."""
     
+    @pytest.mark.odoo_required
     def test_check_health_connected(self, test_config):
         """Test health check when connected."""
         conn = OdooConnection(test_config)
@@ -221,6 +226,7 @@ class TestOdooConnectionHealth:
         assert not is_healthy
         assert message == "Not connected"
     
+    @pytest.mark.odoo_required
     def test_check_health_error(self, test_config):
         """Test health check with connection error."""
         conn = OdooConnection(test_config)
@@ -241,6 +247,7 @@ class TestOdooConnectionHealth:
 class TestOdooConnectionProxies:
     """Test proxy access."""
     
+    @pytest.mark.odoo_required
     def test_proxy_access_when_connected(self, test_config):
         """Test accessing proxies when connected."""
         conn = OdooConnection(test_config)
@@ -276,6 +283,7 @@ class TestOdooConnectionProxies:
 class TestOdooConnectionContext:
     """Test context manager functionality."""
     
+    @pytest.mark.odoo_required
     def test_context_manager_success(self, test_config):
         """Test using connection as context manager."""
         with OdooConnection(test_config) as conn:
@@ -288,6 +296,7 @@ class TestOdooConnectionContext:
         # Should be disconnected after context
         assert not conn.is_connected
     
+    @pytest.mark.odoo_required
     def test_context_manager_with_error(self, test_config):
         """Test context manager with error in context."""
         conn = OdooConnection(test_config)
@@ -302,6 +311,7 @@ class TestOdooConnectionContext:
         # Should still be disconnected
         assert not conn.is_connected
     
+    @pytest.mark.odoo_required
     def test_create_connection_helper(self, test_config):
         """Test create_connection helper function."""
         with create_connection(test_config) as conn:
