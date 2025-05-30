@@ -97,6 +97,47 @@ class OdooResourceHandler:
             limit_int = int(limit) if limit else None
             offset_int = int(offset) if offset else None
             return await self._handle_search(model, domain, fields, limit_int, offset_int, order)
+        
+        # Register browse resource
+        @self.app.resource("odoo://{model}/browse?ids={ids}")
+        async def browse_records(model: str, ids: str) -> str:
+            """Retrieve multiple records by their IDs.
+            
+            Args:
+                model: The Odoo model name (e.g., 'res.partner')
+                ids: Comma-separated list of record IDs (e.g., "1,2,3,4")
+                
+            Returns:
+                Formatted multiple record data
+            """
+            return await self._handle_browse(model, ids)
+        
+        # Register count resource
+        @self.app.resource("odoo://{model}/count?domain={domain}")
+        async def count_records(model: str, domain: Optional[str] = None) -> str:
+            """Count records matching a domain filter.
+            
+            Args:
+                model: The Odoo model name (e.g., 'res.partner')
+                domain: URL-encoded domain filter (optional)
+                
+            Returns:
+                Count of matching records
+            """
+            return await self._handle_count(model, domain)
+        
+        # Register fields resource
+        @self.app.resource("odoo://{model}/fields")
+        async def get_fields(model: str) -> str:
+            """Get field definitions for a model.
+            
+            Args:
+                model: The Odoo model name (e.g., 'res.partner')
+                
+            Returns:
+                Formatted field definitions and metadata
+            """
+            return await self._handle_fields(model)
     
     async def _handle_record_retrieval(self, model: str, record_id: str) -> str:
         """Handle record retrieval request.
@@ -406,6 +447,312 @@ class OdooResourceHandler:
             current_page=current_page,
             total_pages=total_pages
         )
+    
+    async def _handle_browse(self, model: str, ids: str) -> str:
+        """Handle browse request for multiple records.
+        
+        Args:
+            model: The Odoo model name
+            ids: Comma-separated list of record IDs
+            
+        Returns:
+            Formatted multiple record data
+            
+        Raises:
+            ResourcePermissionError: If access is denied
+            ResourceError: For other errors
+        """
+        logger.info(f"Browsing {model} records with IDs: {ids}")
+        
+        try:
+            # Check model access permissions
+            try:
+                self.access_controller.validate_model_access(model, 'read')
+            except AccessControlError as e:
+                logger.warning(f"Access denied for {model}.read: {e}")
+                raise ResourcePermissionError(f"Access denied: {e}")
+            
+            # Ensure we're connected
+            if not self.connection.is_authenticated:
+                raise ResourceError("Not authenticated with Odoo")
+            
+            # Parse IDs
+            id_list = self._parse_ids(ids)
+            if not id_list:
+                raise ResourceError("No valid IDs provided")
+            
+            # Read records in batch
+            records = self.connection.read(model, id_list)
+            
+            # Get field metadata for formatting
+            try:
+                fields_metadata = self.connection.fields_get(model)
+            except Exception as e:
+                logger.debug(f"Could not retrieve field metadata: {e}")
+                fields_metadata = None
+            
+            # Format the results
+            formatted_results = self._format_browse_results(
+                model, records, id_list, fields_metadata
+            )
+            
+            logger.info(f"Browse completed: found {len(records)} of {len(id_list)} records")
+            return formatted_results
+            
+        except (ResourcePermissionError, ResourceError):
+            # Re-raise our custom exceptions
+            raise
+        except OdooConnectionError as e:
+            logger.error(f"Connection error browsing {model}: {e}")
+            raise ResourceError(f"Connection error: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error browsing {model}: {e}")
+            raise ResourceError(f"Failed to browse records: {e}")
+    
+    async def _handle_count(self, model: str, domain: Optional[str]) -> str:
+        """Handle count request with domain filtering.
+        
+        Args:
+            model: The Odoo model name
+            domain: URL-encoded domain filter
+            
+        Returns:
+            Formatted count result
+            
+        Raises:
+            ResourcePermissionError: If access is denied
+            ResourceError: For other errors
+        """
+        logger.info(f"Counting {model} records with domain: {domain}")
+        
+        try:
+            # Check model access permissions
+            try:
+                self.access_controller.validate_model_access(model, 'read')
+            except AccessControlError as e:
+                logger.warning(f"Access denied for {model}.read: {e}")
+                raise ResourcePermissionError(f"Access denied: {e}")
+            
+            # Ensure we're connected
+            if not self.connection.is_authenticated:
+                raise ResourceError("Not authenticated with Odoo")
+            
+            # Parse domain
+            parsed_domain = self._parse_domain(domain)
+            
+            # Get count
+            count = self.connection.search_count(model, parsed_domain)
+            
+            # Format result
+            formatted_result = self._format_count_result(model, count, parsed_domain)
+            
+            logger.info(f"Count completed: {count} records match criteria")
+            return formatted_result
+            
+        except (ResourcePermissionError, ResourceError):
+            # Re-raise our custom exceptions
+            raise
+        except OdooConnectionError as e:
+            logger.error(f"Connection error counting {model}: {e}")
+            raise ResourceError(f"Connection error: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error counting {model}: {e}")
+            raise ResourceError(f"Failed to count records: {e}")
+    
+    async def _handle_fields(self, model: str) -> str:
+        """Handle fields request for model introspection.
+        
+        Args:
+            model: The Odoo model name
+            
+        Returns:
+            Formatted field definitions
+            
+        Raises:
+            ResourcePermissionError: If access is denied
+            ResourceError: For other errors
+        """
+        logger.info(f"Getting field definitions for {model}")
+        
+        try:
+            # Check model access permissions
+            try:
+                self.access_controller.validate_model_access(model, 'read')
+            except AccessControlError as e:
+                logger.warning(f"Access denied for {model}.read: {e}")
+                raise ResourcePermissionError(f"Access denied: {e}")
+            
+            # Ensure we're connected
+            if not self.connection.is_authenticated:
+                raise ResourceError("Not authenticated with Odoo")
+            
+            # Get field definitions
+            fields = self.connection.fields_get(model)
+            
+            # Format result
+            formatted_result = self._format_fields_result(model, fields)
+            
+            logger.info(f"Fields retrieved: {len(fields)} fields found")
+            return formatted_result
+            
+        except (ResourcePermissionError, ResourceError):
+            # Re-raise our custom exceptions
+            raise
+        except OdooConnectionError as e:
+            logger.error(f"Connection error getting fields for {model}: {e}")
+            raise ResourceError(f"Connection error: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error getting fields for {model}: {e}")
+            raise ResourceError(f"Failed to get field definitions: {e}")
+    
+    def _parse_ids(self, ids: str) -> List[int]:
+        """Parse comma-separated IDs string.
+        
+        Args:
+            ids: Comma-separated IDs (e.g., "1,2,3,4")
+            
+        Returns:
+            List of integer IDs
+        """
+        if not ids:
+            return []
+        
+        id_list = []
+        for id_str in ids.split(','):
+            try:
+                id_int = int(id_str.strip())
+                if id_int > 0:
+                    id_list.append(id_int)
+            except ValueError:
+                logger.warning(f"Invalid ID in list: {id_str}")
+                
+        return id_list
+    
+    def _format_browse_results(self, model: str, records: List[Dict[str, Any]], 
+                              requested_ids: List[int], fields_metadata: Optional[Dict[str, Any]]) -> str:
+        """Format browse results.
+        
+        Args:
+            model: Model name
+            records: List of record data
+            requested_ids: IDs that were requested
+            fields_metadata: Field metadata for formatting
+            
+        Returns:
+            Formatted browse results
+        """
+        lines = [
+            f"{'='*60}",
+            f"Browse Results: {model}",
+            f"{'='*60}",
+            f"Requested IDs: {', '.join(map(str, requested_ids))}",
+            f"Found: {len(records)} of {len(requested_ids)} records",
+            ""
+        ]
+        
+        # Check for missing records
+        found_ids = {r['id'] for r in records}
+        missing_ids = set(requested_ids) - found_ids
+        if missing_ids:
+            lines.append(f"Missing IDs: {', '.join(map(str, sorted(missing_ids)))}")
+            lines.append("")
+        
+        # Format each record
+        formatter = RecordFormatter(model)
+        for idx, record in enumerate(records, 1):
+            if idx > 1:
+                lines.append(f"\n{'-'*40}\n")
+            lines.append(formatter.format_record(record, fields_metadata))
+        
+        return '\n'.join(lines)
+    
+    def _format_count_result(self, model: str, count: int, domain: List[Any]) -> str:
+        """Format count result.
+        
+        Args:
+            model: Model name
+            count: Record count
+            domain: Applied domain filter
+            
+        Returns:
+            Formatted count result
+        """
+        lines = [
+            f"{'='*60}",
+            f"Count Result: {model}",
+            f"{'='*60}",
+        ]
+        
+        if domain:
+            formatter = DatasetFormatter(model)
+            lines.append(f"Search criteria: {formatter._format_domain(domain)}")
+        else:
+            lines.append("Search criteria: All records")
+        
+        lines.append("")
+        lines.append(f"Total count: {count:,} record(s)")
+        
+        return '\n'.join(lines)
+    
+    def _format_fields_result(self, model: str, fields: Dict[str, Dict[str, Any]]) -> str:
+        """Format field definitions result.
+        
+        Args:
+            model: Model name
+            fields: Field definitions dictionary
+            
+        Returns:
+            Formatted field definitions
+        """
+        lines = [
+            f"{'='*60}",
+            f"Field Definitions: {model}",
+            f"{'='*60}",
+            f"Total fields: {len(fields)}",
+            ""
+        ]
+        
+        # Group fields by type
+        fields_by_type = {}
+        for field_name, field_info in sorted(fields.items()):
+            field_type = field_info.get('type', 'unknown')
+            if field_type not in fields_by_type:
+                fields_by_type[field_type] = []
+            fields_by_type[field_type].append((field_name, field_info))
+        
+        # Format fields by type
+        for field_type in sorted(fields_by_type.keys()):
+            lines.append(f"\n{field_type.upper()} Fields ({len(fields_by_type[field_type])}):")
+            lines.append("-" * 30)
+            
+            for field_name, field_info in fields_by_type[field_type]:
+                lines.append(f"\n{field_name}:")
+                lines.append(f"  Label: {field_info.get('string', 'N/A')}")
+                lines.append(f"  Required: {field_info.get('required', False)}")
+                lines.append(f"  Readonly: {field_info.get('readonly', False)}")
+                
+                # Add type-specific information
+                if field_type == 'selection':
+                    selection = field_info.get('selection', [])
+                    if selection and len(selection) <= 5:
+                        lines.append(f"  Options: {', '.join([f'{k} ({v})' for k, v in selection])}")
+                    elif selection:
+                        lines.append(f"  Options: {len(selection)} choices available")
+                
+                elif field_type in ('many2one', 'one2many', 'many2many'):
+                    relation = field_info.get('relation', 'N/A')
+                    lines.append(f"  Related Model: {relation}")
+                
+                elif field_type in ('float', 'monetary'):
+                    digits = field_info.get('digits', 'N/A')
+                    lines.append(f"  Precision: {digits}")
+                
+                # Add help text if available
+                help_text = field_info.get('help', '')
+                if help_text:
+                    lines.append(f"  Help: {help_text[:100]}{'...' if len(help_text) > 100 else ''}")
+        
+        return '\n'.join(lines)
     
     def _format_record(self, model: str, record: Dict[str, Any]) -> str:
         """Format a record for MCP consumption.

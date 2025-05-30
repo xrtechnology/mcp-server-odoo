@@ -370,17 +370,27 @@ class TestSearchResourceIntegration:
         
         # Connect and authenticate
         real_connection.connect()
-        real_connection.authenticate()
+        try:
+            real_connection.authenticate()
+        except OdooConnectionError as e:
+            if "429" in str(e) or "Too many requests" in str(e).lower():
+                pytest.skip("Rate limited by server")
+            raise
         
         # Execute real search
-        result = await handler._handle_search(
-            'res.partner', 
-            quote(json.dumps([['is_company', '=', True]])),  # Search for companies
-            'name,email,country_id',  # Specific fields
-            5,  # Limit
-            0,  # Offset
-            'name asc'  # Order
-        )
+        try:
+            result = await handler._handle_search(
+                'res.partner', 
+                quote(json.dumps([['is_company', '=', True]])),  # Search for companies
+                'name,email,country_id',  # Specific fields
+                5,  # Limit
+                0,  # Offset
+                'name asc'  # Order
+            )
+        except ResourceError as e:
+            if "429" in str(e) or "Too many requests" in str(e).lower() or "Rate limit" in str(e):
+                pytest.skip("Rate limited by server")
+            raise
         
         # Verify result structure
         assert 'Search Results: res.partner' in result

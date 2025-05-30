@@ -294,7 +294,12 @@ class TestXMLRPCOperationsIntegration:
     def test_real_search_partners(self, real_config):
         """Test searching partners on real server."""
         with OdooConnection(real_config) as conn:
-            conn.authenticate()
+            try:
+                conn.authenticate()
+            except OdooConnectionError as e:
+                if "429" in str(e) or "Too many requests" in str(e).lower():
+                    pytest.skip("Rate limited by server")
+                raise
             
             # Search for companies
             partner_ids = conn.search(
@@ -309,7 +314,12 @@ class TestXMLRPCOperationsIntegration:
     def test_real_read_partners(self, real_config):
         """Test reading partner data on real server."""
         with OdooConnection(real_config) as conn:
-            conn.authenticate()
+            try:
+                conn.authenticate()
+            except OdooConnectionError as e:
+                if "429" in str(e) or "Too many requests" in str(e).lower():
+                    pytest.skip("Rate limited by server")
+                raise
             
             # Search for a partner
             partner_ids = conn.search("res.partner", [], limit=1)
@@ -329,7 +339,12 @@ class TestXMLRPCOperationsIntegration:
     def test_real_search_read_partners(self, real_config):
         """Test search_read on real server."""
         with OdooConnection(real_config) as conn:
-            conn.authenticate()
+            try:
+                conn.authenticate()
+            except OdooConnectionError as e:
+                if "429" in str(e) or "Too many requests" in str(e).lower():
+                    pytest.skip("Rate limited by server")
+                raise
             
             # Search and read in one operation
             partners = conn.search_read(
@@ -347,7 +362,12 @@ class TestXMLRPCOperationsIntegration:
     def test_real_fields_get(self, real_config):
         """Test getting field definitions on real server."""
         with OdooConnection(real_config) as conn:
-            conn.authenticate()
+            try:
+                conn.authenticate()
+            except OdooConnectionError as e:
+                if "429" in str(e) or "Too many requests" in str(e).lower():
+                    pytest.skip("Rate limited by server")
+                raise
             
             # Get partner fields
             fields = conn.fields_get("res.partner", ["string", "type", "required"])
@@ -360,7 +380,12 @@ class TestXMLRPCOperationsIntegration:
     def test_real_search_count(self, real_config):
         """Test counting records on real server."""
         with OdooConnection(real_config) as conn:
-            conn.authenticate()
+            try:
+                conn.authenticate()
+            except OdooConnectionError as e:
+                if "429" in str(e) or "Too many requests" in str(e).lower():
+                    pytest.skip("Rate limited by server")
+                raise
             
             # Count all partners
             total_count = conn.search_count("res.partner", [])

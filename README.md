@@ -2,8 +2,6 @@
 
 A Model Context Protocol (MCP) server that provides AI assistants with secure access to Odoo ERP systems. This server acts as a bridge between AI tools and Odoo, enabling read and write operations on Odoo data while respecting the configured access controls.
 
-**Note**: This package is currently in development. The MCP protocol implementation is not yet complete.
-
 ## Features
 
 ### Implemented
@@ -13,12 +11,20 @@ A Model Context Protocol (MCP) server that provides AI assistants with secure ac
 - **Model Access Control**: Integration with Odoo MCP module for permission checking
 - **Environment Configuration**: Easy setup using `.env` files
 - **Connection Management**: Robust connection handling with health checks
-- **Comprehensive Testing**: 89% test coverage with unit and integration tests
+- **FastMCP Server Foundation**: MCP protocol server with lifecycle management
+- **Resource URI Handling**: Complete odoo:// URI schema implementation
+- **Data Formatting**: LLM-optimized hierarchical text formatting
+- **Resource Operations**:
+  - Individual record retrieval (`odoo://{model}/record/{id}`)
+  - Search with domain filtering (`odoo://{model}/search`)
+  - Browse multiple records (`odoo://{model}/browse?ids=1,2,3`)
+  - Count records (`odoo://{model}/count`)
+  - Field introspection (`odoo://{model}/fields`)
+- **Comprehensive Testing**: 89% test coverage with 236 tests
 
-### In Progress
-- **MCP Protocol Implementation**: FastMCP server implementation
-- **Resource URI Handling**: Support for odoo:// URI scheme
-- **Data Formatting**: Field-type specific formatting for AI consumption
+### Not Yet Implemented
+- **MCP Client Integration**: Testing with MCP Inspector
+- **Advanced Features**: Audit logging, performance optimization, error categorization
 
 ## Prerequisites
 
@@ -74,14 +80,21 @@ uv pip install -e ".[dev]"
 
 ### Running the Server
 
-**Note**: The MCP server implementation is not yet complete. The following shows current capabilities:
-
 ```bash
-# Test connection and authentication
+# Run the MCP server
+uvx mcp-server-odoo
+
+# Or with Python
 python -m mcp_server_odoo
 
 # With custom environment file
 ODOO_ENV_FILE=/path/to/.env python -m mcp_server_odoo
+
+# Show help
+python -m mcp_server_odoo --help
+
+# Show version
+python -m mcp_server_odoo --version
 ```
 
 ### Current Capabilities

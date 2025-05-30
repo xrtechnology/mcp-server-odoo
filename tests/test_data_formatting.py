@@ -485,7 +485,12 @@ class TestFormattingIntegration:
         
         try:
             connection.connect()
-            connection.authenticate()
+            try:
+                connection.authenticate()
+            except OdooConnectionError as e:
+                if "429" in str(e) or "Too many requests" in str(e).lower():
+                    pytest.skip("Rate limited by server")
+                raise
             
             # Get a product record (has various field types and is usually enabled)
             try:
