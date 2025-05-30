@@ -247,6 +247,28 @@ class OdooConnection:
         except Exception as e:
             return False, f"Health check failed: {e}"
     
+    def test_connection(self) -> bool:
+        """Test if connection to Odoo is working.
+        
+        Returns:
+            True if connection is working, False otherwise
+        """
+        # If not connected, try to connect first
+        if not self._connected:
+            try:
+                self.connect()
+            except Exception as e:
+                logger.error(f"Failed to connect: {e}")
+                return False
+        
+        # Check health
+        is_healthy, _ = self.check_health()
+        return is_healthy
+    
+    def close(self) -> None:
+        """Close the connection (alias for disconnect)."""
+        self.disconnect()
+    
     @property
     def is_connected(self) -> bool:
         """Check if currently connected."""

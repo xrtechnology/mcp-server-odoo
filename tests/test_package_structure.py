@@ -59,5 +59,5 @@ class TestPackageStructure:
         )
         
         assert result.returncode == 0
-        assert "MCP Server for Odoo" in result.stdout
+        assert "Odoo MCP Server" in result.stdout
         assert "ODOO_URL" in result.stdout
