@@ -8,9 +8,23 @@ import pytest
 import socket
 from unittest.mock import Mock, patch, MagicMock
 from xmlrpc.client import Fault
+from functools import wraps
 
 from mcp_server_odoo.odoo_connection import OdooConnection, OdooConnectionError
 from mcp_server_odoo.config import OdooConfig
+
+
+def skip_on_rate_limit(func):
+    """Decorator to skip test if rate limited."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except (OdooConnectionError, Fault) as e:
+            if "429" in str(e) or "too many requests" in str(e).lower():
+                pytest.skip("Rate limited by server")
+            raise
+    return wrapper
 
 
 def is_odoo_server_running(host="localhost", port=8069):
@@ -291,15 +305,11 @@ class TestXMLRPCOperationsIntegration:
             database=None  # Auto-select
         )
     
+    @skip_on_rate_limit
     def test_real_search_partners(self, real_config):
         """Test searching partners on real server."""
         with OdooConnection(real_config) as conn:
-            try:
-                conn.authenticate()
-            except OdooConnectionError as e:
-                if "429" in str(e) or "Too many requests" in str(e).lower():
-                    pytest.skip("Rate limited by server")
-                raise
+            conn.authenticate()
             
             # Search for companies
             partner_ids = conn.search(

@@ -782,6 +782,21 @@ class OdooConnection:
             Number of records matching the domain
         """
         return self.execute_kw(model, 'search_count', [domain], {})
+    
+    def get_server_version(self) -> Optional[Dict[str, Any]]:
+        """Get Odoo server version information.
+        
+        Returns:
+            Dictionary with version information or None if not connected
+        """
+        if not self._connected:
+            return None
+            
+        try:
+            return self.common_proxy.version()
+        except Exception as e:
+            logger.error(f"Failed to get server version: {e}")
+            return None
 
 
 @contextmanager

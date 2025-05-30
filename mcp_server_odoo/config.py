@@ -78,6 +78,18 @@ class OdooConfig:
     def uses_credentials(self) -> bool:
         """Check if configuration uses username/password authentication."""
         return bool(self.username and self.password)
+    
+    @classmethod
+    def from_env(cls, env_file: Optional[Path] = None) -> "OdooConfig":
+        """Create configuration from environment variables.
+        
+        Args:
+            env_file: Optional path to .env file
+            
+        Returns:
+            OdooConfig: Validated configuration object
+        """
+        return load_config(env_file)
 
 
 def load_config(env_file: Optional[Path] = None) -> OdooConfig:

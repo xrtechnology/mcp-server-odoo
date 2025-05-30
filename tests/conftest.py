@@ -74,9 +74,9 @@ def rate_limit_delay(request):
     yield
     # Add a longer delay for integration tests
     if "integration" in request.keywords:
-        time.sleep(2.0)  # 2 second delay for integration tests
+        time.sleep(3.0)  # 3 second delay for integration tests to avoid rate limiting
     else:
-        time.sleep(0.1)  # Small delay for other tests
+        time.sleep(0.2)  # Small delay for other tests
 
 
 @pytest.fixture
