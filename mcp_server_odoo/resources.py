@@ -68,50 +68,14 @@ class OdooResourceHandler:
 
     def _register_resources(self):
         """Register all resource handlers with FastMCP."""
-        # NOTE: There's currently a bug in FastMCP where list_resources
-        # tries to access resource.mime_type but the Resource type has mimeType.
-        # Commenting out resource registration until this is fixed.
-        # See: https://github.com/modelcontextprotocol/python-sdk/issues
+        # Note: FastMCP uses decorators to register resources.
+        # The @self.app.resource decorator automatically handles resource registration.
+        # Resources with parameters (like {model}) are registered as templates,
+        # not concrete resources, so they won't show in list_resources().
 
-        # TODO: Uncomment when FastMCP bug is fixed
-        # from mcp.types import Resource
-        #
-        # # Add resource templates for discovery
-        # # These are templates that show available resource patterns
-        # self.app.add_resource(Resource(
-        #     uri="odoo://{model}/record/{id}",
-        #     name="Get Odoo Record",
-        #     description="Retrieve a specific record by ID",
-        #     mimeType="text/plain"
-        # ))
-        #
-        # self.app.add_resource(Resource(
-        #     uri="odoo://{model}/search",
-        #     name="Search Odoo Records",
-        #     description="Search records with domain filters",
-        #     mimeType="text/plain"
-        # ))
-        #
-        # self.app.add_resource(Resource(
-        #     uri="odoo://{model}/browse",
-        #     name="Browse Multiple Records",
-        #     description="Retrieve multiple records by their IDs",
-        #     mimeType="text/plain"
-        # ))
-        #
-        # self.app.add_resource(Resource(
-        #     uri="odoo://{model}/count",
-        #     name="Count Records",
-        #     description="Count records matching a domain filter",
-        #     mimeType="text/plain"
-        # ))
-        #
-        # self.app.add_resource(Resource(
-        #     uri="odoo://{model}/fields",
-        #     name="Get Field Definitions",
-        #     description="Get field metadata for a model",
-        #     mimeType="text/plain"
-        # ))
+        # Add some concrete resources for enabled models
+        # These will show up in the resource list
+        self._register_concrete_resources()
 
         # Register record retrieval resource handler
         @self.app.resource("odoo://{model}/record/{record_id}")
@@ -197,6 +161,51 @@ class OdooResourceHandler:
                 Formatted field definitions and metadata
             """
             return await self._handle_fields(model)
+
+    def _register_concrete_resources(self):
+        """Register concrete resources for enabled models.
+
+        These resources will show up in the list_resources() response,
+        unlike the template resources which only show in list_resource_templates().
+        """
+        try:
+            # Get enabled models and create concrete example resources
+            enabled_models = self.access_controller.get_enabled_models()
+
+            # Create closures properly to avoid variable binding issues
+            def make_search_handler(model_name):
+                async def search_handler() -> str:
+                    """Search for records in this model."""
+                    return await self._handle_search(model_name, None, None, None, None, None)
+
+                return search_handler
+
+            def make_count_handler(model_name):
+                async def count_handler() -> str:
+                    """Count records in this model."""
+                    return await self._handle_count(model_name, None)
+
+                return count_handler
+
+            def make_fields_handler(model_name):
+                async def fields_handler() -> str:
+                    """Get field definitions for this model."""
+                    return await self._handle_fields(model_name)
+
+                return fields_handler
+
+            for model_info in enabled_models[:5]:  # Limit to first 5 models
+                model = model_info.get("model", "")
+                if not model:
+                    continue
+
+                # Register concrete resources with proper closures
+                self.app.resource(f"odoo://{model}/search")(make_search_handler(model))
+                self.app.resource(f"odoo://{model}/count")(make_count_handler(model))
+                self.app.resource(f"odoo://{model}/fields")(make_fields_handler(model))
+
+        except Exception as e:
+            logger.debug(f"Could not register concrete resources: {e}")
 
     async def _handle_record_retrieval(self, model: str, record_id: str) -> str:
         """Handle record retrieval request.
