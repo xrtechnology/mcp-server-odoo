@@ -165,7 +165,7 @@ class TestServerFoundation:
         capabilities = server.get_capabilities()
 
         assert capabilities == {
-            "capabilities": {"resources": True, "tools": False, "prompts": False}
+            "capabilities": {"resources": True, "tools": True, "prompts": False}
         }
 
     def test_server_logging_configuration(self, valid_config):
