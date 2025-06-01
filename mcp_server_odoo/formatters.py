@@ -69,10 +69,10 @@ class RecordFormatter:
         record_id = record.get("id", "Unknown")
         record_name = record.get("display_name") or record.get("name", f"Record {record_id}")
 
-        lines.append(f"{indent}{'='*50}")
+        lines.append(f"{indent}{'=' * 50}")
         lines.append(f"{indent}Record: {self.model}/{record_id}")
         lines.append(f"{indent}Name: {record_name}")
-        lines.append(f"{indent}{'='*50}")
+        lines.append(f"{indent}{'=' * 50}")
 
         # Group fields by category
         simple_fields = []
@@ -135,7 +135,7 @@ class RecordFormatter:
         if not records:
             return f"No {self.model} records found."
 
-        lines = [f"{'='*60}", f"{self.model} Records ({len(records)} found)", f"{'='*60}", ""]
+        lines = [f"{'=' * 60}", f"{self.model} Records ({len(records)} found)", f"{'=' * 60}", ""]
 
         for idx, record in enumerate(records, 1):
             lines.append(f"[{idx}] {self._get_record_summary(record)}")
@@ -352,9 +352,9 @@ class DatasetFormatter:
             Formatted search results with pagination
         """
         lines = [
-            f"{'='*60}",
+            f"{'=' * 60}",
             f"Search Results: {self.model}",
-            f"{'='*60}",
+            f"{'=' * 60}",
         ]
 
         # Add search context
@@ -367,7 +367,7 @@ class DatasetFormatter:
             if current_page and total_pages:
                 lines.append(f"Page {current_page} of {total_pages}")
             if offset is not None:
-                lines.append(f"Showing records {offset+1}-{offset+showing} of {total_count}")
+                lines.append(f"Showing records {offset + 1}-{offset + showing} of {total_count}")
             else:
                 lines.append(f"Showing {showing} of {total_count} records")
         else:

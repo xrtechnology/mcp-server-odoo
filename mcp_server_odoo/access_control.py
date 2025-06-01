@@ -85,7 +85,7 @@ class AccessController:
         # Validate API key is available
         if not config.api_key:
             raise AccessControlError(
-                "API key required for access control. " "Please configure ODOO_API_KEY."
+                "API key required for access control. Please configure ODOO_API_KEY."
             )
 
         logger.info(f"Initialized AccessController for {self.base_url}")

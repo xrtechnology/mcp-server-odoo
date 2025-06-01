@@ -695,9 +695,9 @@ class OdooResourceHandler:
             Formatted browse results
         """
         lines = [
-            f"{'='*60}",
+            f"{'=' * 60}",
             f"Browse Results: {model}",
-            f"{'='*60}",
+            f"{'=' * 60}",
             f"Requested IDs: {', '.join(map(str, requested_ids))}",
             f"Found: {len(records)} of {len(requested_ids)} records",
             "",
@@ -714,7 +714,7 @@ class OdooResourceHandler:
         formatter = RecordFormatter(model)
         for idx, record in enumerate(records, 1):
             if idx > 1:
-                lines.append(f"\n{'-'*40}\n")
+                lines.append(f"\n{'-' * 40}\n")
             lines.append(formatter.format_record(record, fields_metadata))
 
         return "\n".join(lines)
@@ -731,9 +731,9 @@ class OdooResourceHandler:
             Formatted count result
         """
         lines = [
-            f"{'='*60}",
+            f"{'=' * 60}",
             f"Count Result: {model}",
-            f"{'='*60}",
+            f"{'=' * 60}",
         ]
 
         if domain:
@@ -758,9 +758,9 @@ class OdooResourceHandler:
             Formatted field definitions
         """
         lines = [
-            f"{'='*60}",
+            f"{'=' * 60}",
             f"Field Definitions: {model}",
-            f"{'='*60}",
+            f"{'=' * 60}",
             f"Total fields: {len(fields)}",
             "",
         ]

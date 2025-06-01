@@ -198,7 +198,12 @@ class TestSearchResource:
 
         # Execute search with pagination
         result = await resource_handler._handle_search(
-            "res.partner", None, None, 5, 10, None  # limit=5, offset=10
+            "res.partner",
+            None,
+            None,
+            5,
+            10,
+            None,  # limit=5, offset=10
         )
 
         # Verify pagination in calls

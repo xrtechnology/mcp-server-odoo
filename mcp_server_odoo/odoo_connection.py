@@ -82,7 +82,7 @@ class OdooConnection:
 
             if parsed.scheme not in ("http", "https"):
                 raise OdooConnectionError(
-                    f"Invalid URL scheme: {parsed.scheme}. " "Must be http or https"
+                    f"Invalid URL scheme: {parsed.scheme}. Must be http or https"
                 )
 
             if not parsed.hostname:

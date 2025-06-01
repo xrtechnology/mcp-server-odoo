@@ -5,7 +5,6 @@ Tools are different from resources - they can have side effects and perform
 actions like creating, updating, or deleting records.
 """
 
-import json
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -150,12 +149,12 @@ class OdooToolHandler:
             }
 
         except AccessControlError as e:
-            raise ToolError(f"Access denied: {e}")
+            raise ToolError(f"Access denied: {e}") from e
         except OdooConnectionError as e:
-            raise ToolError(f"Connection error: {e}")
+            raise ToolError(f"Connection error: {e}") from e
         except Exception as e:
             logger.error(f"Error in search_records tool: {e}")
-            raise ToolError(f"Search failed: {e}")
+            raise ToolError(f"Search failed: {e}") from e
 
     async def _handle_get_record_tool(
         self,
@@ -181,12 +180,12 @@ class OdooToolHandler:
             return records[0]
 
         except AccessControlError as e:
-            raise ToolError(f"Access denied: {e}")
+            raise ToolError(f"Access denied: {e}") from e
         except OdooConnectionError as e:
-            raise ToolError(f"Connection error: {e}")
+            raise ToolError(f"Connection error: {e}") from e
         except Exception as e:
             logger.error(f"Error in get_record tool: {e}")
-            raise ToolError(f"Failed to get record: {e}")
+            raise ToolError(f"Failed to get record: {e}") from e
 
     async def _handle_list_models_tool(self) -> List[Dict[str, Any]]:
         """Handle list models tool request."""
@@ -195,7 +194,7 @@ class OdooToolHandler:
             return models
         except Exception as e:
             logger.error(f"Error in list_models tool: {e}")
-            raise ToolError(f"Failed to list models: {e}")
+            raise ToolError(f"Failed to list models: {e}") from e
 
 
 def register_tools(
@@ -218,4 +217,3 @@ def register_tools(
     handler = OdooToolHandler(app, connection, access_controller, config)
     logger.info("Registered Odoo MCP tools")
     return handler
-
