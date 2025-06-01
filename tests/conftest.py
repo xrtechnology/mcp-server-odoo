@@ -1,10 +1,9 @@
 """Pytest configuration and fixtures for Odoo MCP Server tests."""
 
-import os
 import socket
-import pytest
 import xmlrpc.client
-from typing import Generator
+
+import pytest
 
 from mcp_server_odoo.config import OdooConfig
 
@@ -17,19 +16,19 @@ def is_odoo_server_available(host: str = "localhost", port: int = 8069) -> bool:
         sock.settimeout(1)
         result = sock.connect_ex((host, port))
         sock.close()
-        
+
         if result != 0:
             return False
-            
+
         # Try to access the XML-RPC endpoint
         try:
             proxy = xmlrpc.client.ServerProxy(f"http://{host}:{port}/xmlrpc/2/common")
             proxy.version()
             return True
-        except:
+        except Exception:
             return False
-            
-    except:
+
+    except Exception:
         return False
 
 
@@ -49,18 +48,18 @@ def pytest_collection_modifyitems(config, items):
     if ODOO_SERVER_AVAILABLE:
         # Server is available, don't skip anything
         return
-        
+
     skip_odoo = pytest.mark.skip(reason="Odoo server not available at localhost:8069")
-    
+
     for item in items:
         # Skip tests marked with 'integration' when server is not available
         if "integration" in item.keywords:
             item.add_marker(skip_odoo)
-        
-        # Skip tests marked with 'odoo_required' when server is not available  
+
+        # Skip tests marked with 'odoo_required' when server is not available
         if "odoo_required" in item.keywords:
             item.add_marker(skip_odoo)
-            
+
         # Also check for specific test names that indicate they need a real server
         test_name = item.name.lower()
         if any(keyword in test_name for keyword in ["real_server", "integration"]):
@@ -71,17 +70,20 @@ def pytest_collection_modifyitems(config, items):
 def rate_limit_delay(request):
     """Add a delay between tests to avoid rate limiting (only when needed)."""
     # Add delay BEFORE integration tests that hit the real server
-    test_name = request.node.name.lower() if hasattr(request.node, 'name') else ''
-    class_name = request.cls.__name__ if request.cls else ''
-    
+    test_name = request.node.name.lower() if hasattr(request.node, "name") else ""
+    class_name = request.cls.__name__ if request.cls else ""
+
     # Check if this is an integration test that needs rate limit protection
-    if ("integration" in request.keywords or 
-        "Integration" in class_name or
-        "integration" in test_name or
-        "real_" in test_name):
+    if (
+        "integration" in request.keywords
+        or "Integration" in class_name
+        or "integration" in test_name
+        or "real_" in test_name
+    ):
         import time
+
         time.sleep(2.0)  # 2 second delay BEFORE integration tests to avoid rate limiting
-    
+
     yield
 
 
@@ -90,13 +92,13 @@ def odoo_server_required():
     """Fixture that skips test if Odoo server is not available."""
     if not ODOO_SERVER_AVAILABLE:
         pytest.skip("Odoo server not available at localhost:8069")
-        
-        
+
+
 @pytest.fixture
 def handle_rate_limit():
     """Fixture that handles rate limiting errors gracefully."""
     import urllib.error
-    
+
     try:
         yield
     except Exception as e:
@@ -118,5 +120,5 @@ def test_config_with_server_check(odoo_server_required) -> OdooConfig:
         database="mcp",
         log_level="INFO",
         default_limit=10,
-        max_limit=100
+        max_limit=100,
     )

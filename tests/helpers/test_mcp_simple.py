@@ -12,7 +12,7 @@ from pathlib import Path
 # Add parent directory to path so we can import the module
 sys.path.insert(0, str(Path(__file__).parent))
 
-from mcp_server_odoo import OdooMCPServer, OdooConfig
+from mcp_server_odoo import OdooConfig, OdooMCPServer
 
 
 async def test_server():
@@ -20,14 +20,18 @@ async def test_server():
     print("Testing Odoo MCP Server")
     print("======================")
     print()
-    
+
     # Check environment
     print("Environment Configuration:")
     print(f"  ODOO_URL: {os.getenv('ODOO_URL', 'Not set')}")
     print(f"  ODOO_DB: {os.getenv('ODOO_DB', 'Not set')}")
-    print(f"  ODOO_API_KEY: {os.getenv('ODOO_API_KEY', 'Not set')[:10]}..." if os.getenv('ODOO_API_KEY') else "  ODOO_API_KEY: Not set")
+    print(
+        f"  ODOO_API_KEY: {os.getenv('ODOO_API_KEY', 'Not set')[:10]}..."
+        if os.getenv("ODOO_API_KEY")
+        else "  ODOO_API_KEY: Not set"
+    )
     print()
-    
+
     # Create server
     try:
         config = OdooConfig.from_env()
@@ -35,11 +39,11 @@ async def test_server():
     except Exception as e:
         print(f"✗ Failed to load configuration: {e}")
         return 1
-    
+
     # Create server instance
     server = OdooMCPServer(config)
     print(f"✓ Server created: {server.app.name}")
-    
+
     # Test connection
     try:
         server._ensure_connection()
@@ -49,30 +53,30 @@ async def test_server():
     except Exception as e:
         print(f"✗ Failed to connect to Odoo: {e}")
         return 1
-    
+
     # Test resource registration
     try:
         server._register_resources()
         print("✓ Resources registered successfully")
-        
+
         # Get resource handler info
         if server.resource_handler and server.access_controller:
             models = server.access_controller.get_enabled_models()
             print(f"  Models available: {len(models)}")
             if models:
                 # Models is a list of dicts with 'model' key
-                model_names = [m['model'] for m in models[:3]]
+                model_names = [m["model"] for m in models[:3]]
                 print(f"  Example models: {', '.join(model_names)}")
     except Exception as e:
         print(f"✗ Failed to register resources: {e}")
         return 1
-    
+
     print()
     print("Server is ready to handle MCP requests!")
     print()
     print("To test with MCP Inspector:")
     print("  npx @modelcontextprotocol/inspector python -m mcp_server_odoo")
-    
+
     return 0
 
 
@@ -84,7 +88,7 @@ if __name__ == "__main__":
         os.environ["ODOO_DB"] = "mcp"
     if not os.getenv("ODOO_API_KEY"):
         os.environ["ODOO_API_KEY"] = "0ef5b399e9ee9c11b053dfb6eeba8de473c29fcd"
-    
+
     # Run test
     exit_code = asyncio.run(test_server())
     sys.exit(exit_code)

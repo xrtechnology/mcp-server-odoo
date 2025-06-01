@@ -8,42 +8,34 @@ They are skipped by default in automated test runs.
 """
 
 import asyncio
-import json
 import logging
 import os
-import time
-from pathlib import Path
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from mcp.types import Resource, TextContent, Tool
 
 logger = logging.getLogger(__name__)
 
 # Skip the entire module if running in automated tests
 # Set RUN_MCP_TESTS=1 environment variable to run these tests
 if not os.environ.get("RUN_MCP_TESTS"):
-    pytest.skip("MCP client validation tests require running server - set RUN_MCP_TESTS=1 to enable", allow_module_level=True)
+    pytest.skip(
+        "MCP client validation tests require running server - set RUN_MCP_TESTS=1 to enable",
+        allow_module_level=True,
+    )
 
-from mcp.types import (
-    Resource,
-    TextContent,
-    Tool,
-)
-
-from mcp_server_odoo.config import OdooConfig
-
-# Skip these tests if running in CI without a real server
+# Try to import test helpers
 try:
     from .helpers.mcp_test_client import (
         MCPTestClient,
         check_server_capabilities,
-        validate_mcp_response,
     )
+
     MCP_CLIENT_AVAILABLE = True
 except ImportError:
     MCP_CLIENT_AVAILABLE = False
     MCPTestClient = None
+    check_server_capabilities = None
 
 # Test configuration
 TEST_CONFIG = {
@@ -75,16 +67,16 @@ class TestMCPProtocolCompliance:
     async def test_server_connection(self, test_env):
         """Test basic server connection through MCP protocol."""
         client = MCPTestClient()
-        
+
         try:
             async with client.connect() as connected_client:
                 # Should connect successfully
                 assert connected_client.session is not None
-                
+
                 # Note: Server info retrieval through MCP client session
                 # is not directly supported in the current implementation.
                 # The session connects successfully which validates the protocol.
-                
+
         except Exception as e:
             pytest.fail(f"Failed to connect to MCP server: {e}")
 
@@ -92,14 +84,14 @@ class TestMCPProtocolCompliance:
     async def test_resource_listing(self, test_env):
         """Test resource listing through MCP protocol."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             # List resources
             resources = await connected_client.list_resources()
-            
+
             # Should return list of resources
             assert isinstance(resources, list)
-            
+
             # Each resource should have required fields
             for resource in resources[:5]:  # Check first 5
                 assert isinstance(resource, Resource)
@@ -111,16 +103,16 @@ class TestMCPProtocolCompliance:
     async def test_resource_templates(self, test_env):
         """Test resource templates in listing."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
-            # List resources - this might return an empty list 
+            # List resources - this might return an empty list
             # as FastMCP resource listing is not fully implemented
             resources = await connected_client.list_resources()
-            
+
             # Skip template validation for now as resource listing
             # may not be fully implemented in the current FastMCP version
             logger.info(f"Found {len(resources)} resources")
-            
+
             # If we do have resources, validate their format
             if resources:
                 for resource in resources:
@@ -131,18 +123,18 @@ class TestMCPProtocolCompliance:
     async def test_tool_listing(self, test_env):
         """Test tool listing through MCP protocol."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             # List tools
             tools = await connected_client.list_tools()
-            
+
             # Should return list of tools (may be empty if not implemented)
             assert isinstance(tools, list)
-            
+
             # Tools are not yet implemented in the server
             # so we skip the detailed validation for now
             logger.info(f"Found {len(tools)} tools")
-            
+
             # If tools are available, validate their structure
             if tools:
                 for tool in tools:
@@ -155,19 +147,14 @@ class TestMCPProtocolCompliance:
     async def test_read_resource_success(self, test_env):
         """Test successful resource reading."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             # Try to read a specific resource
             # First, search for a record
             search_result = await connected_client.call_tool(
-                "search_records",
-                {
-                    "model": "res.partner",
-                    "domain": [],
-                    "limit": 1
-                }
+                "search_records", {"model": "res.partner", "domain": [], "limit": 1}
             )
-            
+
             # Extract record ID from result
             if search_result.content and len(search_result.content) > 0:
                 content = search_result.content[0]
@@ -176,11 +163,11 @@ class TestMCPProtocolCompliance:
                     text = content.text
                     if "ID:" in text:
                         record_id = text.split("ID:")[1].split()[0]
-                        
+
                         # Read the resource
                         uri = f"odoo://res.partner/record/{record_id}"
                         content = await connected_client.read_resource(uri)
-                        
+
                         # Validate response
                         assert isinstance(content, str)
                         assert len(content) > 0
@@ -190,16 +177,19 @@ class TestMCPProtocolCompliance:
     async def test_read_resource_not_found(self, test_env):
         """Test resource not found error."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             # Try to read non-existent resource
             uri = "odoo://res.partner/record/999999"
-            
+
             with pytest.raises(Exception) as exc_info:
                 await connected_client.read_resource(uri)
-            
+
             # Should get appropriate error
-            assert "not found" in str(exc_info.value).lower() or "does not exist" in str(exc_info.value).lower()
+            assert (
+                "not found" in str(exc_info.value).lower()
+                or "does not exist" in str(exc_info.value).lower()
+            )
 
     @pytest.mark.asyncio
     async def test_call_tool_search_records(self, test_env):
@@ -223,11 +213,11 @@ class TestMCPProtocolCompliance:
     async def test_server_capabilities_check(self, test_env):
         """Test comprehensive server capabilities."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             # Test all capabilities
             results = await check_server_capabilities(connected_client)
-            
+
             # Check capabilities based on current implementation
             # Resource listing returns empty due to FastMCP bug with mime_type vs mimeType
             assert "list_resources" in results
@@ -239,18 +229,18 @@ class TestMCPProtocolCompliance:
     async def test_mcp_response_validation(self, test_env):
         """Test MCP response format validation."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             # Get resources and validate format
             resources = await connected_client.list_resources()
-            
+
             for resource in resources[:5]:
                 # Validate resource structure
                 assert isinstance(resource.uri, str)
                 assert isinstance(resource.name, str)
                 if resource.description:
                     assert isinstance(resource.description, str)
-                
+
                 # Validate URI format
                 assert resource.uri.startswith("odoo://")
                 parts = resource.uri[7:].split("/")
@@ -260,13 +250,13 @@ class TestMCPProtocolCompliance:
     async def test_resource_uri_patterns(self, test_env):
         """Test various resource URI patterns."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             resources = await connected_client.list_resources()
-            
+
             # Resource listing may not be fully implemented
             logger.info(f"Found {len(resources)} resources for pattern checking")
-            
+
             # If resources are available, check patterns
             if resources:
                 patterns = {
@@ -276,12 +266,12 @@ class TestMCPProtocolCompliance:
                     "count": False,
                     "fields": False,
                 }
-                
+
                 for resource in resources:
                     for pattern in patterns:
                         if f"/{pattern}" in resource.uri:
                             patterns[pattern] = True
-                
+
                 # Log found patterns
                 for pattern, found in patterns.items():
                     logger.info(f"Pattern {pattern}: {'found' if found else 'not found'}")
@@ -290,20 +280,20 @@ class TestMCPProtocolCompliance:
     async def test_concurrent_operations(self, test_env):
         """Test concurrent MCP operations."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             # Run operations that are currently supported
             tasks = [
                 connected_client.list_resources(),
                 connected_client.list_tools(),
             ]
-            
+
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             # Should not raise exceptions
             for i, r in enumerate(results):
                 assert not isinstance(r, Exception), f"Task {i} failed: {r}"
-            
+
             # Results should be lists (may be empty)
             assert isinstance(results[0], list)  # Resources
             assert isinstance(results[1], list)  # Tools
@@ -316,20 +306,18 @@ class TestMCPIntegration:
     async def test_end_to_end_workflow(self, test_env):
         """Test complete workflow through MCP protocol."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             # Test with currently available features
             # 1. List resources (may be empty)
             resources = await connected_client.list_resources()
             assert isinstance(resources, list)
-            
+
             # 2. Try to read a specific resource directly
             # First search for a record using direct resource access
             try:
                 # Use a hardcoded resource URI for testing
-                record_content = await connected_client.read_resource(
-                    "odoo://res.partner/record/1"
-                )
+                record_content = await connected_client.read_resource("odoo://res.partner/record/1")
                 assert isinstance(record_content, str)
                 logger.info("Successfully read record directly")
             except Exception as e:
@@ -340,16 +328,16 @@ class TestMCPIntegration:
     async def test_error_handling_workflow(self, test_env):
         """Test error handling through MCP protocol."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             # Test error scenarios with available features
-            
+
             # 1. Invalid resource URI
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError):
                 await connected_client.read_resource("invalid://uri")
-            
+
             # 2. Non-existent resource
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError):
                 await connected_client.read_resource("odoo://res.partner/record/999999999")
 
 
@@ -360,25 +348,25 @@ class TestMCPInspectorCompatibility:
     async def test_inspector_requirements(self, test_env):
         """Test that server meets MCP Inspector requirements."""
         client = MCPTestClient()
-        
+
         async with client.connect() as connected_client:
             # Get server info
             info = await connected_client.get_server_info()
-            
+
             # Should have required info
             assert info["name"] is not None
             assert info["version"] is not None
-            
+
             # List resources - Inspector expects this
             resources = await connected_client.list_resources()
             # Resources may be empty in current implementation
             assert isinstance(resources, list)
-            
+
             # List tools - Inspector expects this
             tools = await connected_client.list_tools()
             # Tools may be empty as they're not implemented yet
             assert isinstance(tools, list)
-            
+
             # If tools exist, validate their schema
             if tools:
                 for tool in tools:
@@ -398,12 +386,13 @@ class TestRealOdooServer:
         # Skip if no real server
         try:
             import urllib.request
+
             with urllib.request.urlopen("http://localhost:8069/mcp/health", timeout=2) as response:
                 if response.status != 200:
                     pytest.skip("Odoo server not available")
-        except:
+        except Exception:
             pytest.skip("Odoo server not available")
-        
+
         # Test with real server
         client = MCPTestClient()
         async with client.connect() as connected_client:
@@ -412,12 +401,10 @@ class TestRealOdooServer:
             # Due to FastMCP bug, resources may be empty
             assert isinstance(resources, list)
             logger.info(f"Real server returned {len(resources)} resources")
-            
+
             # Try to read a resource directly instead of using tools
             try:
-                content = await connected_client.read_resource(
-                    "odoo://res.partner/search?limit=1"
-                )
+                content = await connected_client.read_resource("odoo://res.partner/search?limit=1")
                 assert isinstance(content, str)
                 logger.info("Successfully performed search through resource")
             except Exception as e:
