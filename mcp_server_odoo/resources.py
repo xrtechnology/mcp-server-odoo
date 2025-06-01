@@ -59,7 +59,52 @@ class OdooResourceHandler:
     
     def _register_resources(self):
         """Register all resource handlers with FastMCP."""
-        # Register record retrieval resource
+        # NOTE: There's currently a bug in FastMCP where list_resources
+        # tries to access resource.mime_type but the Resource type has mimeType.
+        # Commenting out resource registration until this is fixed.
+        # See: https://github.com/modelcontextprotocol/python-sdk/issues
+        
+        # TODO: Uncomment when FastMCP bug is fixed
+        # from mcp.types import Resource
+        # 
+        # # Add resource templates for discovery
+        # # These are templates that show available resource patterns
+        # self.app.add_resource(Resource(
+        #     uri="odoo://{model}/record/{id}",
+        #     name="Get Odoo Record",
+        #     description="Retrieve a specific record by ID",
+        #     mimeType="text/plain"
+        # ))
+        # 
+        # self.app.add_resource(Resource(
+        #     uri="odoo://{model}/search",
+        #     name="Search Odoo Records", 
+        #     description="Search records with domain filters",
+        #     mimeType="text/plain"
+        # ))
+        # 
+        # self.app.add_resource(Resource(
+        #     uri="odoo://{model}/browse",
+        #     name="Browse Multiple Records",
+        #     description="Retrieve multiple records by their IDs",
+        #     mimeType="text/plain"
+        # ))
+        # 
+        # self.app.add_resource(Resource(
+        #     uri="odoo://{model}/count",
+        #     name="Count Records",
+        #     description="Count records matching a domain filter",
+        #     mimeType="text/plain"
+        # ))
+        # 
+        # self.app.add_resource(Resource(
+        #     uri="odoo://{model}/fields",
+        #     name="Get Field Definitions",
+        #     description="Get field metadata for a model",
+        #     mimeType="text/plain"
+        # ))
+        
+        # Register record retrieval resource handler
         @self.app.resource("odoo://{model}/record/{record_id}")
         async def get_record(model: str, record_id: str) -> str:
             """Retrieve a specific record from Odoo.

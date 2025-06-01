@@ -321,6 +321,7 @@ class TestXMLRPCOperationsIntegration:
             assert isinstance(partner_ids, list)
             print(f"Found {len(partner_ids)} company partners")
     
+    @skip_on_rate_limit
     def test_real_read_partners(self, real_config):
         """Test reading partner data on real server."""
         with OdooConnection(real_config) as conn:
@@ -346,6 +347,7 @@ class TestXMLRPCOperationsIntegration:
                 assert "name" in partners[0]
                 print(f"Partner: {partners[0].get('name')}")
     
+    @skip_on_rate_limit
     def test_real_search_read_partners(self, real_config):
         """Test search_read on real server."""
         with OdooConnection(real_config) as conn:
@@ -369,6 +371,7 @@ class TestXMLRPCOperationsIntegration:
                 assert "name" in partner
                 print(f"Company: {partner.get('name')}")
     
+    @skip_on_rate_limit
     def test_real_fields_get(self, real_config):
         """Test getting field definitions on real server."""
         with OdooConnection(real_config) as conn:
@@ -387,6 +390,7 @@ class TestXMLRPCOperationsIntegration:
             assert fields["name"]["type"] == "char"
             print(f"Found {len(fields)} fields in res.partner")
     
+    @skip_on_rate_limit
     def test_real_search_count(self, real_config):
         """Test counting records on real server."""
         with OdooConnection(real_config) as conn:
@@ -409,6 +413,7 @@ class TestXMLRPCOperationsIntegration:
             assert total_count >= company_count
             print(f"Total partners: {total_count}, Companies: {company_count}")
     
+    @skip_on_rate_limit
     def test_real_execute_method(self, real_config):
         """Test generic execute method on real server."""
         with OdooConnection(real_config) as conn:

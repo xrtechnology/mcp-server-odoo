@@ -14,6 +14,9 @@ from mcp_server_odoo.odoo_connection import OdooConnection, OdooConnectionError
 from mcp_server_odoo.access_control import AccessController, AccessControlError
 from mcp_server_odoo.config import OdooConfig, load_config
 
+# Import skip_on_rate_limit decorator
+from .test_xmlrpc_operations import skip_on_rate_limit
+
 
 @pytest.fixture
 def mock_config():
@@ -382,6 +385,7 @@ class TestAdvancedResourceIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
+    @skip_on_rate_limit
     async def test_browse_real_records(self, real_config, real_connection):
         """Test browse with real Odoo connection."""
         # Setup real components
@@ -420,6 +424,7 @@ class TestAdvancedResourceIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
+    @skip_on_rate_limit
     async def test_count_real_records(self, real_config, real_connection):
         """Test count with real Odoo connection."""
         # Setup real components
@@ -458,6 +463,7 @@ class TestAdvancedResourceIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
+    @skip_on_rate_limit
     async def test_fields_real_model(self, real_config, real_connection):
         """Test fields with real Odoo model."""
         # Setup real components

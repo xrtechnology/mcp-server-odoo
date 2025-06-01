@@ -2,7 +2,6 @@
 
 import os
 import socket
-import time
 import pytest
 import xmlrpc.client
 from typing import Generator
@@ -70,13 +69,20 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(autouse=True)
 def rate_limit_delay(request):
-    """Add a delay between tests to avoid rate limiting."""
+    """Add a delay between tests to avoid rate limiting (only when needed)."""
+    # Add delay BEFORE integration tests that hit the real server
+    test_name = request.node.name.lower() if hasattr(request.node, 'name') else ''
+    class_name = request.cls.__name__ if request.cls else ''
+    
+    # Check if this is an integration test that needs rate limit protection
+    if ("integration" in request.keywords or 
+        "Integration" in class_name or
+        "integration" in test_name or
+        "real_" in test_name):
+        import time
+        time.sleep(2.0)  # 2 second delay BEFORE integration tests to avoid rate limiting
+    
     yield
-    # Add a longer delay for integration tests
-    if "integration" in request.keywords:
-        time.sleep(3.0)  # 3 second delay for integration tests to avoid rate limiting
-    else:
-        time.sleep(0.2)  # Small delay for other tests
 
 
 @pytest.fixture
@@ -84,6 +90,23 @@ def odoo_server_required():
     """Fixture that skips test if Odoo server is not available."""
     if not ODOO_SERVER_AVAILABLE:
         pytest.skip("Odoo server not available at localhost:8069")
+        
+        
+@pytest.fixture
+def handle_rate_limit():
+    """Fixture that handles rate limiting errors gracefully."""
+    import urllib.error
+    
+    try:
+        yield
+    except Exception as e:
+        # Check if this is a rate limit error
+        if isinstance(e, urllib.error.HTTPError) and e.code == 429:
+            pytest.skip("Skipping due to rate limiting")
+        elif "429" in str(e) or "TOO MANY REQUESTS" in str(e):
+            pytest.skip("Skipping due to rate limiting")
+        else:
+            raise
 
 
 @pytest.fixture

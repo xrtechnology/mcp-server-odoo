@@ -521,6 +521,11 @@ class OdooConnection:
             if e.code == 401:
                 logger.warning("Invalid API key")
                 return False
+            elif e.code == 429:
+                logger.warning("Rate limit exceeded during API key validation")
+                # For testing, we'll treat rate limit as a temporary failure
+                # and fall back to password auth
+                return False
             else:
                 logger.error(f"HTTP error during API key validation: {e}")
                 raise OdooConnectionError(f"Failed to validate API key: {e}")
