@@ -13,6 +13,7 @@ from .access_control import AccessController
 from .config import OdooConfig, get_config
 from .odoo_connection import OdooConnection
 from .resources import register_resources
+from .tools import register_tools
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -49,10 +50,12 @@ class OdooMCPServer:
         self.connection: Optional[OdooConnection] = None
         self.access_controller: Optional[AccessController] = None
         self.resource_handler = None
+        self.tool_handler = None
 
         # Create FastMCP instance with server metadata
         self.app = FastMCP(
             name="odoo-mcp-server",
+            version=SERVER_VERSION,
             instructions="MCP server for accessing and managing Odoo ERP data through the Model Context Protocol",
         )
 
@@ -90,6 +93,7 @@ class OdooMCPServer:
                 self.connection = None
                 self.access_controller = None
                 self.resource_handler = None
+                self.tool_handler = None
 
     def _setup_handlers(self):
         """Set up MCP handlers for resources, tools, and prompts.
@@ -111,6 +115,14 @@ class OdooMCPServer:
             )
             logger.info("Registered MCP resources")
 
+    def _register_tools(self):
+        """Register tool handlers after connection is established."""
+        if self.connection and self.access_controller:
+            self.tool_handler = register_tools(
+                self.app, self.connection, self.access_controller, self.config
+            )
+            logger.info("Registered MCP tools")
+
     async def run_stdio(self):
         """Run the server using stdio transport.
 
@@ -123,6 +135,7 @@ class OdooMCPServer:
 
             # Register resources after connection is established
             self._register_resources()
+            self._register_tools()
 
             logger.info("Starting MCP server with stdio transport...")
             await self.app.run_stdio_async()
@@ -153,8 +166,8 @@ class OdooMCPServer:
         """
         return {
             "capabilities": {
-                "resources": True,  # Will expose Odoo data as resources
-                "tools": False,  # Tools will be added in later phases
+                "resources": True,  # Exposes Odoo data as resources
+                "tools": True,  # Provides tools for Odoo operations
                 "prompts": False,  # Prompts will be added in later phases
             }
         }

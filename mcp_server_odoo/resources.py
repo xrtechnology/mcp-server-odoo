@@ -165,47 +165,13 @@ class OdooResourceHandler:
     def _register_concrete_resources(self):
         """Register concrete resources for enabled models.
 
-        These resources will show up in the list_resources() response,
-        unlike the template resources which only show in list_resource_templates().
+        Note: In the current FastMCP implementation, resources with parameters
+        are registered as templates and won't show in list_resources().
+        This is expected behavior - use list_resource_templates() to see them.
         """
-        try:
-            # Get enabled models and create concrete example resources
-            enabled_models = self.access_controller.get_enabled_models()
-
-            # Create closures properly to avoid variable binding issues
-            def make_search_handler(model_name):
-                async def search_handler() -> str:
-                    """Search for records in this model."""
-                    return await self._handle_search(model_name, None, None, None, None, None)
-
-                return search_handler
-
-            def make_count_handler(model_name):
-                async def count_handler() -> str:
-                    """Count records in this model."""
-                    return await self._handle_count(model_name, None)
-
-                return count_handler
-
-            def make_fields_handler(model_name):
-                async def fields_handler() -> str:
-                    """Get field definitions for this model."""
-                    return await self._handle_fields(model_name)
-
-                return fields_handler
-
-            for model_info in enabled_models[:5]:  # Limit to first 5 models
-                model = model_info.get("model", "")
-                if not model:
-                    continue
-
-                # Register concrete resources with proper closures
-                self.app.resource(f"odoo://{model}/search")(make_search_handler(model))
-                self.app.resource(f"odoo://{model}/count")(make_count_handler(model))
-                self.app.resource(f"odoo://{model}/fields")(make_fields_handler(model))
-
-        except Exception as e:
-            logger.debug(f"Could not register concrete resources: {e}")
+        # The template resources registered with decorators are sufficient
+        # FastMCP will handle them properly as templates
+        pass
 
     async def _handle_record_retrieval(self, model: str, record_id: str) -> str:
         """Handle record retrieval request.
