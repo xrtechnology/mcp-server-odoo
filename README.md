@@ -8,7 +8,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 
-A Model Context Protocol (MCP) server that provides AI assistants with secure access to Odoo ERP systems. This server acts as a bridge between AI tools and Odoo, enabling read and write operations on Odoo data while respecting the configured access controls.
+A Model Context Protocol (MCP) server that provides AI assistants with secure access to Odoo ERP systems. This server enables AI tools like Claude to interact with Odoo data through a standardized interface, supporting both read operations and basic tools for data retrieval.
 
 ## Features
 
@@ -19,7 +19,7 @@ A Model Context Protocol (MCP) server that provides AI assistants with secure ac
 - **Model Access Control**: Integration with Odoo MCP module for permission checking
 - **Environment Configuration**: Easy setup using `.env` files
 - **Connection Management**: Robust connection handling with health checks
-- **FastMCP Server Foundation**: MCP protocol server with lifecycle management
+- **FastMCP Server**: Complete MCP protocol implementation with stdio transport
 - **Resource URI Handling**: Complete odoo:// URI schema implementation
 - **Data Formatting**: LLM-optimized hierarchical text formatting
 - **Resource Operations**:
@@ -28,11 +28,15 @@ A Model Context Protocol (MCP) server that provides AI assistants with secure ac
   - Browse multiple records (`odoo://{model}/browse?ids=1,2,3`)
   - Count records (`odoo://{model}/count`)
   - Field introspection (`odoo://{model}/fields`)
-- **Comprehensive Testing**: 89% test coverage with 236 tests
+- **MCP Tools**:
+  - `search_records` - Search for records with filters
+  - `get_record` - Retrieve a specific record by ID
+  - `list_models` - List all MCP-enabled models
+- **Comprehensive Testing**: 89% test coverage with 223 tests
 
 ### Not Yet Implemented
-- **MCP Client Integration**: Testing with MCP Inspector
-- **Advanced Features**: Audit logging, performance optimization, error categorization
+- **Write Operation Tools**: create_record, update_record, delete_record
+- **Advanced Features**: Prompts, performance optimization, webhook support
 
 ## Prerequisites
 
@@ -105,43 +109,57 @@ python -m mcp_server_odoo --help
 python -m mcp_server_odoo --version
 ```
 
-### Current Capabilities
+### MCP Resources and Tools
 
-The package currently provides:
+The server provides both resources (for data retrieval) and tools (for operations):
 
-1. **Connection Management**:
-   ```python
-   from mcp_server_odoo import OdooConnection, load_config
-   
-   config = load_config()
-   with OdooConnection(config) as conn:
-       conn.authenticate()
-       
-       # Search for partners
-       partner_ids = conn.search("res.partner", [["is_company", "=", True]])
-       
-       # Read partner data
-       partners = conn.read("res.partner", partner_ids, ["name", "email"])
-   ```
+#### Resources
+Resources are accessed via URI patterns and return formatted data:
 
-2. **Access Control**:
-   ```python
-   from mcp_server_odoo import AccessController
-   
-   controller = AccessController(config)
-   
-   # Check if model is enabled
-   if controller.is_model_enabled("res.partner"):
-       # Check specific operation
-       allowed, msg = controller.check_operation_allowed("res.partner", "read")
-   ```
+- **Get Record**: `odoo://res.partner/record/1`
+- **Search**: `odoo://res.partner/search?domain=[["is_company","=",true]]&limit=10`
+- **Browse**: `odoo://res.partner/browse?ids=1,2,3`
+- **Count**: `odoo://res.partner/count?domain=[["is_company","=",true]]`
+- **Fields**: `odoo://res.partner/fields`
+
+#### Tools
+Tools provide programmatic access to Odoo data:
+
+- **search_records**: Search with filters and pagination
+- **get_record**: Retrieve a specific record by ID
+- **list_models**: List all MCP-enabled models
+
+### Example Usage
+
+```python
+from mcp_server_odoo import OdooConnection, AccessController, load_config
+
+# Load configuration
+config = load_config()
+
+# Test connection
+with OdooConnection(config) as conn:
+    conn.authenticate()
+    
+    # Search for partners
+    partner_ids = conn.search("res.partner", [["is_company", "=", True]])
+    
+    # Read partner data
+    partners = conn.read("res.partner", partner_ids, ["name", "email"])
+    
+    # Check access control
+    controller = AccessController(config)
+    models = controller.get_enabled_models()
+    print(f"Found {len(models)} enabled models")
+```
 
 ### Testing with MCP Inspector
 
-The MCP Inspector integration is planned but not yet available:
-
 ```bash
-# Coming soon
+# Test the MCP server with Inspector
+npx @modelcontextprotocol/inspector python -m mcp_server_odoo
+
+# Or with UV
 npx @modelcontextprotocol/inspector uvx --from . mcp-server-odoo
 ```
 
@@ -154,18 +172,16 @@ mcp-server-odoo/
 ├── mcp_server_odoo/
 │   ├── __init__.py
 │   ├── __main__.py             # Entry point
-│   ├── server.py               # FastMCP server (in progress)
+│   ├── server.py               # FastMCP server implementation
 │   ├── config.py               # Configuration management
 │   ├── odoo_connection.py      # Odoo XML-RPC connection
-│   └── access_control.py       # Model access control
+│   ├── access_control.py       # Model access control
+│   ├── resources.py            # MCP resource handlers
+│   ├── tools.py                # MCP tool handlers
+│   ├── formatters.py           # Data formatting for LLMs
+│   └── uri_schema.py           # URI schema implementation
 ├── tests/
-│   ├── test_config.py
-│   ├── test_odoo_connection_basic.py
-│   ├── test_database_discovery.py
-│   ├── test_authentication.py
-│   ├── test_xmlrpc_operations.py
-│   ├── test_access_control.py
-│   └── test_package_structure.py
+│   └── ...
 ├── .env.example                # Example configuration
 ├── pyproject.toml              # Package configuration
 └── README.md
@@ -180,8 +196,15 @@ uv run pytest --cov
 # Run specific test file
 uv run pytest tests/test_config.py -v
 
+# Run only unit tests (skip integration)
+uv run pytest -k "not Integration"
+
 # Run with coverage report
 uv run pytest --cov=mcp_server_odoo --cov-report=term-missing
+
+# Run MCP protocol validation tests
+cd tests
+./run_mcp_tests.sh
 ```
 
 ### Code Quality
@@ -218,9 +241,10 @@ The MCP Server for Odoo consists of two main components:
      - `/mcp/xmlrpc/object` - Model operations
 
 2. **Python Package** (this package): Runs separately and connects to Odoo:
-   - **Implemented**: Connection management, authentication, XML-RPC operations, access control
-   - **In Progress**: MCP protocol implementation via FastMCP
-   - **Planned**: Resource URI handling, data formatting for AI consumption
+   - **Implemented**: Complete MCP server with resources and tools
+   - **Resources**: All 5 operations (record, search, browse, count, fields)
+   - **Tools**: Basic read operations (search_records, get_record, list_models)
+   - **Features**: Authentication, access control, data formatting, pagination
 
 ## Security Considerations
 
