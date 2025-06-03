@@ -17,6 +17,7 @@ from .error_handling import (
 )
 from .logging_config import get_logger, logging_config, perf_logger
 from .odoo_connection import OdooConnection, OdooConnectionError
+from .performance import PerformanceManager
 from .resources import register_resources
 from .tools import register_tools
 
@@ -51,6 +52,7 @@ class OdooMCPServer:
         # Initialize connection and access controller (will be created on startup)
         self.connection: Optional[OdooConnection] = None
         self.access_controller: Optional[AccessController] = None
+        self.performance_manager: Optional[PerformanceManager] = None
         self.resource_handler = None
         self.tool_handler = None
 
@@ -74,7 +76,13 @@ class OdooMCPServer:
             try:
                 logger.info("Establishing connection to Odoo...")
                 with perf_logger.track_operation("connection_setup"):
-                    self.connection = OdooConnection(self.config)
+                    # Create performance manager (shared across components)
+                    self.performance_manager = PerformanceManager(self.config)
+
+                    # Create connection with performance manager
+                    self.connection = OdooConnection(
+                        self.config, performance_manager=self.performance_manager
+                    )
 
                     # Connect and authenticate
                     self.connection.connect()
@@ -115,8 +123,8 @@ class OdooMCPServer:
         - Tool handlers for Odoo operations
         - Prompt handlers for guided workflows
         """
-        # Tools will be added in Phase 3
-        # Prompts will be added in Phase 4
+        # TODO: Tools will be added in Phase 3
+        # TODO: Prompts will be added in Phase 4
         pass
 
     def _register_resources(self):
@@ -200,6 +208,11 @@ class OdooMCPServer:
             else False
         )
 
+        # Get performance stats if available
+        performance_stats = None
+        if self.performance_manager:
+            performance_stats = self.performance_manager.get_stats()
+
         return {
             "status": "healthy" if is_connected else "unhealthy",
             "version": SERVER_VERSION,
@@ -214,4 +227,5 @@ class OdooMCPServer:
             },
             "error_metrics": error_handler.get_metrics(),
             "recent_errors": error_handler.get_recent_errors(limit=5),
+            "performance": performance_stats,
         }

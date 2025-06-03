@@ -91,8 +91,11 @@ class TestServerFoundation:
         # Ensure connection
         server._ensure_connection()
 
-        # Verify connection was created and tested
-        server._mock_connection_class.assert_called_once_with(server.config)
+        # Verify connection was created with performance manager
+        assert server._mock_connection_class.call_count == 1
+        call_args = server._mock_connection_class.call_args
+        assert call_args[0][0] == server.config
+        assert "performance_manager" in call_args[1]
         server._mock_connection.connect.assert_called_once()
         server._mock_connection.authenticate.assert_called_once()
 
@@ -214,8 +217,11 @@ class TestServerFoundation:
                 # Run the server
                 await server.run_stdio()
 
-                # Verify connection was established
-                server._mock_connection_class.assert_called_once_with(server.config)
+                # Verify connection was established with performance manager
+                assert server._mock_connection_class.call_count == 1
+                call_args = server._mock_connection_class.call_args
+                assert call_args[0][0] == server.config
+                assert "performance_manager" in call_args[1]
                 server._mock_connection.connect.assert_called_once()
                 server._mock_connection.authenticate.assert_called_once()
 

@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from .config import OdooConfig
+from .performance import PerformanceManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,16 +41,25 @@ class OdooConnection:
     # Connection timeout in seconds
     DEFAULT_TIMEOUT = 30
 
-    def __init__(self, config: OdooConfig, timeout: int = DEFAULT_TIMEOUT):
+    def __init__(
+        self,
+        config: OdooConfig,
+        timeout: int = DEFAULT_TIMEOUT,
+        performance_manager: Optional[PerformanceManager] = None,
+    ):
         """Initialize connection with configuration.
 
         Args:
             config: OdooConfig object with connection parameters
             timeout: Connection timeout in seconds
+            performance_manager: Optional performance manager for optimizations
         """
         self.config = config
         self.timeout = timeout
         self._url_components = self._parse_url(config.url)
+
+        # Performance manager for optimizations
+        self._performance_manager = performance_manager or PerformanceManager(config)
 
         # XML-RPC proxies (created on connect)
         self._db_proxy: Optional[xmlrpc.client.ServerProxy] = None
@@ -138,7 +148,7 @@ class OdooConnection:
         """Establish connection to Odoo server.
 
         Creates XML-RPC proxies for MCP endpoints but doesn't
-        authenticate yet.
+        authenticate yet. Uses connection pooling for better performance.
 
         Raises:
             OdooConnectionError: If connection fails
@@ -148,23 +158,15 @@ class OdooConnection:
             return
 
         try:
-            transport = self._create_transport()
-
-            # Create proxies for MCP endpoints
-            self._db_proxy = xmlrpc.client.ServerProxy(
-                self._build_endpoint_url(self.MCP_DB_ENDPOINT), transport=transport, allow_none=True
+            # Use connection pool for proxies
+            self._db_proxy = self._performance_manager.get_optimized_connection(
+                self.MCP_DB_ENDPOINT
             )
-
-            self._common_proxy = xmlrpc.client.ServerProxy(
-                self._build_endpoint_url(self.MCP_COMMON_ENDPOINT),
-                transport=transport,
-                allow_none=True,
+            self._common_proxy = self._performance_manager.get_optimized_connection(
+                self.MCP_COMMON_ENDPOINT
             )
-
-            self._object_proxy = xmlrpc.client.ServerProxy(
-                self._build_endpoint_url(self.MCP_OBJECT_ENDPOINT),
-                transport=transport,
-                allow_none=True,
+            self._object_proxy = self._performance_manager.get_optimized_connection(
+                self.MCP_OBJECT_ENDPOINT
             )
 
             # Test connection by calling server_version
@@ -202,15 +204,7 @@ class OdooConnection:
             logger.warning("Not connected to Odoo")
             return
 
-        # Close transport connections
-        for proxy in (self._db_proxy, self._common_proxy, self._object_proxy):
-            if proxy and hasattr(proxy, "_ServerProxy__transport"):
-                try:
-                    proxy._ServerProxy__transport.close()
-                except Exception as e:
-                    logger.warning(f"Error closing transport: {e}")
-
-        # Clear proxies
+        # Clear proxies (but don't close pooled connections)
         self._db_proxy = None
         self._common_proxy = None
         self._object_proxy = None
@@ -620,6 +614,11 @@ class OdooConnection:
         """Get authentication method used ('api_key' or 'password')."""
         return self._auth_method
 
+    @property
+    def performance_manager(self) -> PerformanceManager:
+        """Get the performance manager instance."""
+        return self._performance_manager
+
     def execute(self, model: str, method: str, *args) -> Any:
         """Execute an operation on an Odoo model.
 
@@ -716,10 +715,41 @@ class OdooConnection:
         Returns:
             List of dictionaries containing record data
         """
+        # Try to get cached records
+        cached_records = []
+        uncached_ids = []
+
+        for record_id in ids:
+            cached = self._performance_manager.get_cached_record(model, record_id, fields)
+            if cached:
+                cached_records.append(cached)
+            else:
+                uncached_ids.append(record_id)
+
+        # If all records are cached, return them
+        if not uncached_ids:
+            logger.debug(f"All {len(ids)} records retrieved from cache")
+            return cached_records
+
+        # Read uncached records
         kwargs = {}
         if fields:
             kwargs["fields"] = fields
-        return self.execute_kw(model, "read", [ids], kwargs)
+
+        with self._performance_manager.monitor.track_operation(f"read_{model}"):
+            new_records = self.execute_kw(model, "read", [uncached_ids], kwargs)
+
+        # Cache the new records
+        for record in new_records:
+            self._performance_manager.cache_record(model, record, fields)
+
+        # Combine cached and new records in original order
+        all_records = cached_records + new_records
+        # Sort by the original ID order
+        id_order = {id_val: idx for idx, id_val in enumerate(ids)}
+        all_records.sort(key=lambda r: id_order.get(r.get("id", 0), len(ids)))
+
+        return all_records
 
     def search_read(
         self, model: str, domain: List[List[Any]], fields: Optional[List[str]] = None, **kwargs
@@ -751,10 +781,25 @@ class OdooConnection:
         Returns:
             Dictionary mapping field names to their definitions
         """
+        # Check cache first
+        cached_fields = self._performance_manager.get_cached_fields(model)
+        if cached_fields and not attributes:  # Only use cache if no specific attributes requested
+            logger.debug(f"Field definitions for {model} retrieved from cache")
+            return cached_fields
+
+        # Get fields from server
         kwargs = {}
         if attributes:
             kwargs["attributes"] = attributes
-        return self.execute_kw(model, "fields_get", [], kwargs)
+
+        with self._performance_manager.monitor.track_operation(f"fields_get_{model}"):
+            fields = self.execute_kw(model, "fields_get", [], kwargs)
+
+        # Cache if we got all attributes
+        if not attributes:
+            self._performance_manager.cache_fields(model, fields)
+
+        return fields
 
     def search_count(self, model: str, domain: List[List[Any]]) -> int:
         """Count records matching a domain.
@@ -767,6 +812,81 @@ class OdooConnection:
             Number of records matching the domain
         """
         return self.execute_kw(model, "search_count", [domain], {})
+
+    def create(self, model: str, values: Dict[str, Any]) -> int:
+        """Create a new record.
+
+        Args:
+            model: The Odoo model name
+            values: Dictionary of field values for the new record
+
+        Returns:
+            ID of the created record
+
+        Raises:
+            OdooConnectionError: If creation fails
+        """
+        try:
+            with self._performance_manager.monitor.track_operation(f"create_{model}"):
+                record_id = self.execute_kw(model, "create", [values], {})
+                # Invalidate cache for this model
+                self._performance_manager.invalidate_record_cache(model)
+                logger.info(f"Created {model} record with ID {record_id}")
+                return record_id
+        except Exception as e:
+            logger.error(f"Failed to create {model} record: {e}")
+            raise
+
+    def write(self, model: str, ids: List[int], values: Dict[str, Any]) -> bool:
+        """Update existing records.
+
+        Args:
+            model: The Odoo model name
+            ids: List of record IDs to update
+            values: Dictionary of field values to update
+
+        Returns:
+            True if update was successful
+
+        Raises:
+            OdooConnectionError: If update fails
+        """
+        try:
+            with self._performance_manager.monitor.track_operation(f"write_{model}"):
+                result = self.execute_kw(model, "write", [ids, values], {})
+                # Invalidate cache for updated records
+                for record_id in ids:
+                    self._performance_manager.invalidate_record_cache(model, record_id)
+                logger.info(f"Updated {len(ids)} {model} record(s)")
+                return result
+        except Exception as e:
+            logger.error(f"Failed to update {model} records: {e}")
+            raise
+
+    def unlink(self, model: str, ids: List[int]) -> bool:
+        """Delete records.
+
+        Args:
+            model: The Odoo model name
+            ids: List of record IDs to delete
+
+        Returns:
+            True if deletion was successful
+
+        Raises:
+            OdooConnectionError: If deletion fails
+        """
+        try:
+            with self._performance_manager.monitor.track_operation(f"unlink_{model}"):
+                result = self.execute_kw(model, "unlink", [ids], {})
+                # Invalidate cache for deleted records
+                for record_id in ids:
+                    self._performance_manager.invalidate_record_cache(model, record_id)
+                logger.info(f"Deleted {len(ids)} {model} record(s)")
+                return result
+        except Exception as e:
+            logger.error(f"Failed to delete {model} records: {e}")
+            raise
 
     def get_server_version(self) -> Optional[Dict[str, Any]]:
         """Get Odoo server version information.

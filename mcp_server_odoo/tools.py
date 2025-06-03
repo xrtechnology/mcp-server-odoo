@@ -104,6 +104,56 @@ class OdooToolHandler:
             """
             return await self._handle_list_models_tool()
 
+        @self.app.tool()
+        async def create_record(
+            model: str,
+            values: Dict[str, Any],
+        ) -> Dict[str, Any]:
+            """Create a new record in an Odoo model.
+
+            Args:
+                model: The Odoo model name (e.g., 'res.partner')
+                values: Field values for the new record
+
+            Returns:
+                Dictionary with created record details
+            """
+            return await self._handle_create_record_tool(model, values)
+
+        @self.app.tool()
+        async def update_record(
+            model: str,
+            record_id: int,
+            values: Dict[str, Any],
+        ) -> Dict[str, Any]:
+            """Update an existing record.
+
+            Args:
+                model: The Odoo model name (e.g., 'res.partner')
+                record_id: The record ID to update
+                values: Field values to update
+
+            Returns:
+                Dictionary with updated record details
+            """
+            return await self._handle_update_record_tool(model, record_id, values)
+
+        @self.app.tool()
+        async def delete_record(
+            model: str,
+            record_id: int,
+        ) -> Dict[str, Any]:
+            """Delete a record.
+
+            Args:
+                model: The Odoo model name (e.g., 'res.partner')
+                record_id: The record ID to delete
+
+            Returns:
+                Dictionary with deletion confirmation
+            """
+            return await self._handle_delete_record_tool(model, record_id)
+
     async def _handle_search_tool(
         self,
         model: str,
@@ -201,6 +251,141 @@ class OdooToolHandler:
         except Exception as e:
             logger.error(f"Error in list_models tool: {e}")
             raise ToolError(f"Failed to list models: {e}") from e
+
+    async def _handle_create_record_tool(
+        self,
+        model: str,
+        values: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Handle create record tool request."""
+        try:
+            with perf_logger.track_operation("tool_create_record", model=model):
+                # Check model access
+                self.access_controller.validate_model_access(model, "create")
+
+                # Ensure we're connected
+                if not self.connection.is_authenticated:
+                    raise ValidationError("Not authenticated with Odoo")
+
+                # Validate required fields
+                if not values:
+                    raise ValidationError("No values provided for record creation")
+
+                # Create the record
+                record_id = self.connection.create(model, values)
+
+                # Read the created record to return full details
+                records = self.connection.read(model, [record_id])
+                if not records:
+                    raise ToolError(f"Failed to read created record: {model} with ID {record_id}")
+
+                return {
+                    "success": True,
+                    "record": records[0],
+                    "message": f"Successfully created {model} record with ID {record_id}",
+                }
+
+        except AccessControlError as e:
+            raise ToolError(f"Access denied: {e}") from e
+        except OdooConnectionError as e:
+            raise ToolError(f"Connection error: {e}") from e
+        except Exception as e:
+            logger.error(f"Error in create_record tool: {e}")
+            raise ToolError(f"Failed to create record: {e}") from e
+
+    async def _handle_update_record_tool(
+        self,
+        model: str,
+        record_id: int,
+        values: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Handle update record tool request."""
+        try:
+            with perf_logger.track_operation("tool_update_record", model=model):
+                # Check model access
+                self.access_controller.validate_model_access(model, "write")
+
+                # Ensure we're connected
+                if not self.connection.is_authenticated:
+                    raise ValidationError("Not authenticated with Odoo")
+
+                # Validate input
+                if not values:
+                    raise ValidationError("No values provided for record update")
+
+                # Check if record exists
+                existing = self.connection.read(model, [record_id])
+                if not existing:
+                    raise NotFoundError(f"Record not found: {model} with ID {record_id}")
+
+                # Update the record
+                success = self.connection.write(model, [record_id], values)
+
+                # Read the updated record to return full details
+                records = self.connection.read(model, [record_id])
+                if not records:
+                    raise ToolError(f"Failed to read updated record: {model} with ID {record_id}")
+
+                return {
+                    "success": success,
+                    "record": records[0],
+                    "message": f"Successfully updated {model} record with ID {record_id}",
+                }
+
+        except NotFoundError as e:
+            raise ToolError(str(e)) from e
+        except AccessControlError as e:
+            raise ToolError(f"Access denied: {e}") from e
+        except OdooConnectionError as e:
+            raise ToolError(f"Connection error: {e}") from e
+        except Exception as e:
+            logger.error(f"Error in update_record tool: {e}")
+            raise ToolError(f"Failed to update record: {e}") from e
+
+    async def _handle_delete_record_tool(
+        self,
+        model: str,
+        record_id: int,
+    ) -> Dict[str, Any]:
+        """Handle delete record tool request."""
+        try:
+            with perf_logger.track_operation("tool_delete_record", model=model):
+                # Check model access
+                self.access_controller.validate_model_access(model, "unlink")
+
+                # Ensure we're connected
+                if not self.connection.is_authenticated:
+                    raise ValidationError("Not authenticated with Odoo")
+
+                # Check if record exists
+                existing = self.connection.read(model, [record_id])
+                if not existing:
+                    raise NotFoundError(f"Record not found: {model} with ID {record_id}")
+
+                # Store some info about the record before deletion
+                record_name = existing[0].get(
+                    "name", existing[0].get("display_name", f"ID {record_id}")
+                )
+
+                # Delete the record
+                success = self.connection.unlink(model, [record_id])
+
+                return {
+                    "success": success,
+                    "deleted_id": record_id,
+                    "deleted_name": record_name,
+                    "message": f"Successfully deleted {model} record '{record_name}' (ID: {record_id})",
+                }
+
+        except NotFoundError as e:
+            raise ToolError(str(e)) from e
+        except AccessControlError as e:
+            raise ToolError(f"Access denied: {e}") from e
+        except OdooConnectionError as e:
+            raise ToolError(f"Connection error: {e}") from e
+        except Exception as e:
+            logger.error(f"Error in delete_record tool: {e}")
+            raise ToolError(f"Failed to delete record: {e}") from e
 
 
 def register_tools(
