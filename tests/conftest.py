@@ -118,10 +118,10 @@ def test_config_with_server_check(odoo_server_required) -> OdooConfig:
     # Require environment variables to be set
     if not os.getenv("ODOO_URL"):
         pytest.skip("ODOO_URL environment variable not set. Please configure .env file.")
-    
+
     if not os.getenv("ODOO_API_KEY"):
         pytest.skip("ODOO_API_KEY environment variable not set. Please configure .env file.")
-    
+
     return OdooConfig(
         url=os.getenv("ODOO_URL"),
         api_key=os.getenv("ODOO_API_KEY"),

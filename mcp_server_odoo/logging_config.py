@@ -173,8 +173,9 @@ def setup_logging(
         format_string = log_format or os.getenv("ODOO_MCP_LOG_FORMAT", DEFAULT_FORMAT)
         formatter = logging.Formatter(format_string)
 
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
+    # Console handler - MUST use stderr for MCP servers
+    # MCP uses stdout for JSON-RPC communication, so logging must go to stderr
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 

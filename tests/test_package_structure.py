@@ -55,5 +55,6 @@ class TestPackageStructure:
         )
 
         assert result.returncode == 0
-        assert "Odoo MCP Server" in result.stdout
-        assert "ODOO_URL" in result.stdout
+        # Help output now goes to stderr to avoid interfering with MCP JSON-RPC communication
+        assert "Odoo MCP Server" in result.stderr
+        assert "ODOO_URL" in result.stderr

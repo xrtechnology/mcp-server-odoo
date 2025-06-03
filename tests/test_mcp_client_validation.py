@@ -334,6 +334,7 @@ class TestMCPIntegration:
 
             # 1. Invalid resource URI
             from mcp.shared.exceptions import McpError
+
             with pytest.raises(McpError):
                 await connected_client.read_resource("invalid://uri")
 

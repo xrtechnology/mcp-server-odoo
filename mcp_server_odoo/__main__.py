@@ -36,27 +36,30 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Handle help flag
     if "--help" in argv or "-h" in argv:
-        print("Odoo MCP Server - Model Context Protocol server for Odoo ERP")
-        print("\nUsage: mcp-server-odoo [options]")
-        print("\nOptions:")
-        print("  -h, --help         Show this help message and exit")
-        print("  --version          Show version information")
-        print("\nEnvironment variables:")
-        print("  ODOO_URL           Odoo server URL (required)")
-        print("  ODOO_API_KEY       Odoo API key (preferred authentication)")
-        print("  ODOO_USER          Odoo username (fallback if no API key)")
-        print("  ODOO_PASSWORD      Odoo password (required with username)")
-        print("  ODOO_DB            Odoo database name (auto-detected if not set)")
-        print("\nOptional environment variables:")
-        print("  ODOO_MCP_LOG_LEVEL    Log level (DEBUG, INFO, WARNING, ERROR)")
-        print("  ODOO_MCP_DEFAULT_LIMIT Default record limit (default: 10)")
-        print("  ODOO_MCP_MAX_LIMIT     Maximum record limit (default: 100)")
-        print("\nFor more information, visit: https://github.com/yourusername/odoo-mcp-server")
+        print("Odoo MCP Server - Model Context Protocol server for Odoo ERP", file=sys.stderr)
+        print("\nUsage: mcp-server-odoo [options]", file=sys.stderr)
+        print("\nOptions:", file=sys.stderr)
+        print("  -h, --help         Show this help message and exit", file=sys.stderr)
+        print("  --version          Show version information", file=sys.stderr)
+        print("\nEnvironment variables:", file=sys.stderr)
+        print("  ODOO_URL           Odoo server URL (required)", file=sys.stderr)
+        print("  ODOO_API_KEY       Odoo API key (preferred authentication)", file=sys.stderr)
+        print("  ODOO_USER          Odoo username (fallback if no API key)", file=sys.stderr)
+        print("  ODOO_PASSWORD      Odoo password (required with username)", file=sys.stderr)
+        print("  ODOO_DB            Odoo database name (auto-detected if not set)", file=sys.stderr)
+        print("\nOptional environment variables:", file=sys.stderr)
+        print("  ODOO_MCP_LOG_LEVEL    Log level (DEBUG, INFO, WARNING, ERROR)", file=sys.stderr)
+        print("  ODOO_MCP_DEFAULT_LIMIT Default record limit (default: 10)", file=sys.stderr)
+        print("  ODOO_MCP_MAX_LIMIT     Maximum record limit (default: 100)", file=sys.stderr)
+        print(
+            "\nFor more information, visit: https://github.com/yourusername/odoo-mcp-server",
+            file=sys.stderr,
+        )
         return 0
 
     # Handle version flag
     if "--version" in argv:
-        print(f"odoo-mcp-server v{SERVER_VERSION}")
+        print(f"odoo-mcp-server v{SERVER_VERSION}", file=sys.stderr)
         return 0
 
     try:

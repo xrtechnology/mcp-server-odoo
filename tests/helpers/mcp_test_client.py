@@ -252,7 +252,7 @@ if __name__ == "__main__":
         # Check that required environment variables are set
         required_vars = ["ODOO_URL", "ODOO_API_KEY"]
         missing_vars = [var for var in required_vars if not os.getenv(var)]
-        
+
         if missing_vars:
             print("ERROR: Missing required environment variables:")
             for var in missing_vars:
@@ -260,7 +260,7 @@ if __name__ == "__main__":
             print("\nPlease configure these in your .env file")
             print("Copy .env.example to .env and update with your values")
             return
-        
+
         # Optional variables can have defaults
         if not os.getenv("ODOO_DB"):
             os.environ["ODOO_DB"] = "mcp"  # Will be auto-detected if not set

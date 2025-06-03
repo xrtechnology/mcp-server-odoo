@@ -354,21 +354,21 @@ async def validate_resource_operation(
 def create_test_env_file(test_dir: Path) -> Path:
     """Create a test .env file with server configuration."""
     import os
-    
+
     env_file = test_dir / ".env"
 
     # Require environment variables to be set
-    if not os.getenv('ODOO_URL'):
+    if not os.getenv("ODOO_URL"):
         raise ValueError("ODOO_URL environment variable not set. Please configure .env file.")
-    
-    if not os.getenv('ODOO_API_KEY'):
+
+    if not os.getenv("ODOO_API_KEY"):
         raise ValueError("ODOO_API_KEY environment variable not set. Please configure .env file.")
-    
+
     env_content = f"""
-ODOO_URL={os.getenv('ODOO_URL')}
-ODOO_API_KEY={os.getenv('ODOO_API_KEY')}
-ODOO_DATABASE={os.getenv('ODOO_DB', 'mcp')}
-ODOO_MCP_LOG_LEVEL={os.getenv('ODOO_MCP_LOG_LEVEL', 'INFO')}
+ODOO_URL={os.getenv("ODOO_URL")}
+ODOO_API_KEY={os.getenv("ODOO_API_KEY")}
+ODOO_DATABASE={os.getenv("ODOO_DB", "mcp")}
+ODOO_MCP_LOG_LEVEL={os.getenv("ODOO_MCP_LOG_LEVEL", "INFO")}
 """
 
     env_file.write_text(env_content.strip())

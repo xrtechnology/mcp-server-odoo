@@ -403,9 +403,10 @@ class TestMainEntry:
         assert exit_code == 0
 
         captured = capsys.readouterr()
-        assert "Odoo MCP Server" in captured.out
-        assert "Usage:" in captured.out
-        assert "ODOO_URL" in captured.out
+        # Help output now goes to stderr to avoid interfering with MCP JSON-RPC communication
+        assert "Odoo MCP Server" in captured.err
+        assert "Usage:" in captured.err
+        assert "ODOO_URL" in captured.err
 
     def test_version_flag(self, capsys):
         """Test --version flag."""
@@ -416,7 +417,8 @@ class TestMainEntry:
         assert exit_code == 0
 
         captured = capsys.readouterr()
-        assert f"odoo-mcp-server v{SERVER_VERSION}" in captured.out
+        # Version output now goes to stderr to avoid interfering with MCP JSON-RPC communication
+        assert f"odoo-mcp-server v{SERVER_VERSION}" in captured.err
 
     def test_main_with_invalid_config(self, capsys, monkeypatch):
         """Test main with invalid configuration."""

@@ -201,7 +201,11 @@ class OdooConnection:
     def disconnect(self) -> None:
         """Close connection and cleanup resources."""
         if not self._connected:
-            logger.warning("Not connected to Odoo")
+            try:
+                logger.warning("Not connected to Odoo")
+            except (ValueError, RuntimeError):
+                # Ignore logging errors during cleanup
+                pass
             return
 
         # Clear proxies (but don't close pooled connections)
@@ -216,7 +220,11 @@ class OdooConnection:
         self._authenticated = False
         self._auth_method = None
 
-        logger.info("Disconnected from Odoo server")
+        try:
+            logger.info("Disconnected from Odoo server")
+        except (ValueError, RuntimeError):
+            # Ignore logging errors during cleanup
+            pass
 
     def check_health(self) -> Tuple[bool, str]:
         """Check connection health.
@@ -318,8 +326,14 @@ class OdooConnection:
     def __del__(self):
         """Cleanup on deletion."""
         try:
-            self.disconnect()
-        except Exception:
+            # Only disconnect if we're actually connected
+            if hasattr(self, "_connected") and self._connected:
+                # Suppress logging during cleanup to avoid I/O errors
+                self.disconnect()
+        except (ValueError, AttributeError, RuntimeError):
+            # ValueError: I/O operation on closed file
+            # AttributeError: object might be partially initialized
+            # RuntimeError: various cleanup-related errors
             pass
 
     def list_databases(self) -> List[str]:
