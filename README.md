@@ -8,309 +8,371 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 
-A Model Context Protocol (MCP) server that provides AI assistants with secure access to Odoo ERP systems. This server enables AI tools like Claude to interact with Odoo data through a standardized interface, supporting both read operations and basic tools for data retrieval.
+An MCP server that enables AI assistants like Claude to interact with Odoo ERP systems. Access business data, search records, and work with Odoo through natural language.
 
 ## Features
 
-### Implemented
-- **Dual Authentication**: Supports both API key and username/password authentication
-- **Database Discovery**: Automatic database detection with intelligent selection
-- **XML-RPC Communication**: Full XML-RPC integration via MCP-specific endpoints
-- **Model Access Control**: Integration with Odoo MCP module for permission checking
-- **Environment Configuration**: Easy setup using `.env` files
-- **Connection Management**: Robust connection handling with health checks
-- **FastMCP Server**: Complete MCP protocol implementation with stdio transport
-- **Resource URI Handling**: Complete odoo:// URI schema implementation
-- **Data Formatting**: LLM-optimized hierarchical text formatting
-- **Resource Operations**:
-  - Individual record retrieval (`odoo://{model}/record/{id}`)
-  - Search with domain filtering (`odoo://{model}/search`)
-  - Browse multiple records (`odoo://{model}/browse?ids=1,2,3`)
-  - Count records (`odoo://{model}/count`)
-  - Field introspection (`odoo://{model}/fields`)
-- **MCP Tools**:
-  - `search_records` - Search for records with filters
-  - `get_record` - Retrieve a specific record by ID
-  - `list_models` - List all MCP-enabled models
-- **Comprehensive Testing**: 89% test coverage with 223 tests
-
-### Not Yet Implemented
-- **Write Operation Tools**: create_record, update_record, delete_record
-- **Advanced Features**: Prompts, performance optimization, webhook support
-
-## Prerequisites
-
-- Python 3.10 or higher
-- Access to an Odoo instance (18.0+ recommended)
-- The Odoo MCP module installed on your Odoo server (see `/odoo-apps/mcp_server`)
-- An API key generated in Odoo (Settings > Users > API Keys)
+- 🔍 **Search and retrieve** any Odoo record (customers, products, invoices, etc.)
+- 📊 **Browse multiple records** and get formatted summaries
+- 🔢 **Count records** matching specific criteria
+- 📋 **Inspect model fields** to understand data structure
+- 🔐 **Secure access** with API key or username/password authentication
+- 🎯 **Smart pagination** for large datasets
+- 💬 **LLM-optimized output** with hierarchical text formatting
 
 ## Installation
 
-```bash
-# Install using uv (recommended)
-uv pip install mcp-server-odoo
+### Prerequisites
 
-# Or install from source
+- Python 3.10 or higher
+- Access to an Odoo instance (version 18.0+)
+- The [Odoo MCP module](https://github.com/ivnvxd/mcp-server-odoo/tree/main/odoo-apps/mcp_server) installed on your Odoo server
+- An API key generated in Odoo (Settings > Users > API Keys)
+
+### Installing via MCP Settings (Recommended)
+
+Add this configuration to your MCP settings:
+
+<details>
+<summary>Claude Desktop</summary>
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "odoo": {
+      "command": "uvx",
+      "args": ["mcp-server-odoo"],
+      "env": {
+        "ODOO_URL": "https://your-odoo-instance.com",
+        "ODOO_API_KEY": "your-api-key-here",
+        "ODOO_DB": "your-database-name"
+      }
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary>Cursor</summary>
+
+Add to `~/.cursor/mcp_settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "odoo": {
+      "command": "uvx",
+      "args": ["mcp-server-odoo"],
+      "env": {
+        "ODOO_URL": "https://your-odoo-instance.com",
+        "ODOO_API_KEY": "your-api-key-here",
+        "ODOO_DB": "your-database-name"
+      }
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary>VS Code (with GitHub Copilot)</summary>
+
+Add to your VS Code settings (`~/.vscode/mcp_settings.json` or workspace settings):
+
+```json
+{
+  "github.copilot.chat.mcpServers": {
+    "odoo": {
+      "command": "uvx",
+      "args": ["mcp-server-odoo"],
+      "env": {
+        "ODOO_URL": "https://your-odoo-instance.com",
+        "ODOO_API_KEY": "your-api-key-here",
+        "ODOO_DB": "your-database-name"
+      }
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary>Zed</summary>
+
+Add to `~/.config/zed/settings.json`:
+
+```json
+{
+  "context_servers": {
+    "odoo": {
+      "command": "uvx",
+      "args": ["mcp-server-odoo"],
+      "env": {
+        "ODOO_URL": "https://your-odoo-instance.com",
+        "ODOO_API_KEY": "your-api-key-here",
+        "ODOO_DB": "your-database-name"
+      }
+    }
+  }
+}
+```
+</details>
+
+### Alternative Installation Methods
+
+<details>
+<summary>Using pip</summary>
+
+```bash
+# Install globally
+pip install mcp-server-odoo
+
+# Or use pipx for isolated environment
+pipx install mcp-server-odoo
+```
+
+Then use `mcp-server-odoo` as the command in your MCP configuration.
+</details>
+
+<details>
+<summary>From source</summary>
+
+```bash
 git clone https://github.com/ivnvxd/mcp-server-odoo.git
 cd mcp-server-odoo
-uv pip install -e .
-
-# Install with development dependencies
-uv pip install -e ".[dev]"
+pip install -e .
 ```
+
+Then use the full path to the package in your MCP configuration.
+</details>
 
 ## Configuration
 
-1. Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
+### Environment Variables
 
-2. Update the `.env` file with your Odoo connection details:
+The server requires the following environment variables:
 
-   ```env
-   # Required: Odoo server URL
-   ODOO_URL=http://localhost:8069
-   
-   # Authentication (use one method):
-   # Method 1: API Key (preferred)
-   ODOO_API_KEY=your-api-key-here
-   
-   # Method 2: Username/Password
-   # ODOO_USER=your-username
-   # ODOO_PASSWORD=your-password
-   
-   # Optional settings:
-   ODOO_DB=your-database-name  # Auto-detected if not specified
-   ODOO_MCP_LOG_LEVEL=INFO     # DEBUG, INFO, WARNING, ERROR, CRITICAL
-   ODOO_MCP_DEFAULT_LIMIT=10   # Default pagination limit
-   ODOO_MCP_MAX_LIMIT=100      # Maximum allowed limit
-   ```
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `ODOO_URL` | Yes | Your Odoo instance URL | `https://mycompany.odoo.com` |
+| `ODOO_API_KEY` | Yes* | API key for authentication | `0ef5b399e9ee9c11b053dfb6eeba8de473c29fcd` |
+| `ODOO_USER` | Yes* | Username (if not using API key) | `admin` |
+| `ODOO_PASSWORD` | Yes* | Password (if not using API key) | `admin` |
+| `ODOO_DB` | No | Database name (auto-detected if not set) | `mycompany` |
 
-## Usage
+*Either `ODOO_API_KEY` or both `ODOO_USER` and `ODOO_PASSWORD` are required.
 
-### Running the Server
+### Setting up Odoo
 
-```bash
-# Run the MCP server
-uvx mcp-server-odoo
+1. **Install the MCP module**:
+   - Download the [mcp_server module](https://github.com/ivnvxd/mcp-server-odoo/tree/main/odoo-apps/mcp_server)
+   - Install it in your Odoo instance
+   - Navigate to Settings > MCP Server
 
-# Or with Python
-python -m mcp_server_odoo
+2. **Enable models for MCP access**:
+   - Go to Settings > MCP Server > Enabled Models
+   - Add models you want to access (e.g., res.partner, product.product)
+   - Configure permissions (read, write, create, delete) per model
 
-# With custom environment file
-ODOO_ENV_FILE=/path/to/.env python -m mcp_server_odoo
+3. **Generate an API key**:
+   - Go to Settings > Users & Companies > Users
+   - Select your user
+   - Under the "API Keys" tab, create a new key
+   - Copy the key for your MCP configuration
 
-# Show help
-python -m mcp_server_odoo --help
+## Usage Examples
 
-# Show version
-python -m mcp_server_odoo --version
+Once configured, you can ask Claude:
+
+- "Show me all customers from Spain"
+- "Find products with stock below 10 units"
+- "List today's sales orders over $1000"
+- "Search for unpaid invoices from last month"
+- "Count how many active employees we have"
+- "Show me the contact information for Microsoft"
+
+## Available Tools
+
+### `search_records`
+Search for records in any Odoo model with filters.
+
+```json
+{
+  "model": "res.partner",
+  "domain": [["is_company", "=", true], ["country_id.code", "=", "ES"]],
+  "fields": ["name", "email", "phone"],
+  "limit": 10
+}
 ```
 
-### MCP Resources and Tools
+### `get_record`
+Retrieve a specific record by ID.
 
-The server provides both resources (for data retrieval) and tools (for operations):
-
-#### Resources
-Resources are accessed via URI patterns and return formatted data:
-
-- **Get Record**: `odoo://res.partner/record/1`
-- **Search**: `odoo://res.partner/search?domain=[["is_company","=",true]]&limit=10`
-- **Browse**: `odoo://res.partner/browse?ids=1,2,3`
-- **Count**: `odoo://res.partner/count?domain=[["is_company","=",true]]`
-- **Fields**: `odoo://res.partner/fields`
-
-#### Tools
-Tools provide programmatic access to Odoo data:
-
-- **search_records**: Search with filters and pagination
-- **get_record**: Retrieve a specific record by ID
-- **list_models**: List all MCP-enabled models
-
-### Example Usage
-
-```python
-from mcp_server_odoo import OdooConnection, AccessController, load_config
-
-# Load configuration
-config = load_config()
-
-# Test connection
-with OdooConnection(config) as conn:
-    conn.authenticate()
-    
-    # Search for partners
-    partner_ids = conn.search("res.partner", [["is_company", "=", True]])
-    
-    # Read partner data
-    partners = conn.read("res.partner", partner_ids, ["name", "email"])
-    
-    # Check access control
-    controller = AccessController(config)
-    models = controller.get_enabled_models()
-    print(f"Found {len(models)} enabled models")
+```json
+{
+  "model": "res.partner",
+  "record_id": 42,
+  "fields": ["name", "email", "street", "city"]
+}
 ```
 
-### Testing with MCP Inspector
+### `list_models`
+List all models enabled for MCP access.
 
-```bash
-# Test the MCP server with Inspector
-npx @modelcontextprotocol/inspector python -m mcp_server_odoo
-
-# Or with UV
-npx @modelcontextprotocol/inspector uvx --from . mcp-server-odoo
+```json
+{}
 ```
 
-## Development
+### `create_record`
+Create a new record in Odoo.
 
-### Project Structure
-
-```
-mcp-server-odoo/
-├── mcp_server_odoo/
-│   ├── __init__.py
-│   ├── __main__.py             # Entry point
-│   ├── server.py               # FastMCP server implementation
-│   ├── config.py               # Configuration management
-│   ├── odoo_connection.py      # Odoo XML-RPC connection
-│   ├── access_control.py       # Model access control
-│   ├── resources.py            # MCP resource handlers
-│   ├── tools.py                # MCP tool handlers
-│   ├── formatters.py           # Data formatting for LLMs
-│   └── uri_schema.py           # URI schema implementation
-├── tests/
-│   └── ...
-├── .env.example                # Example configuration
-├── pyproject.toml              # Package configuration
-└── README.md
+```json
+{
+  "model": "res.partner",
+  "values": {
+    "name": "New Customer",
+    "email": "customer@example.com",
+    "is_company": true
+  }
+}
 ```
 
-### Running Tests
+### `update_record`
+Update an existing record.
 
-```bash
-# Run all tests with coverage
-uv run pytest --cov
-
-# Run specific test file
-uv run pytest tests/test_config.py -v
-
-# Run only unit tests (skip integration)
-uv run pytest -k "not Integration"
-
-# Run with coverage report
-uv run pytest --cov=mcp_server_odoo --cov-report=term-missing
-
-# Run MCP protocol validation tests
-cd tests
-./run_mcp_tests.sh
+```json
+{
+  "model": "res.partner",
+  "record_id": 42,
+  "values": {
+    "phone": "+1234567890",
+    "website": "https://example.com"
+  }
+}
 ```
 
-### Code Quality
+### `delete_record`
+Delete a record from Odoo.
 
-```bash
-# Format code with black
-uv run black .
-
-# Check code style with ruff
-uv run ruff check .
-
-# Type checking with mypy
-uv run mypy .
-
-# Run all checks
-uv run black . && uv run ruff check . && uv run mypy .
+```json
+{
+  "model": "res.partner",
+  "record_id": 42
+}
 ```
 
-## Architecture
+## Resources
 
-The MCP Server for Odoo consists of two main components:
+The server also provides direct access to Odoo data through resource URIs:
 
-1. **Odoo Module** (`/odoo-apps/mcp_server`): Installed on your Odoo server (18.0+), this module provides:
-   - Configuration interface for enabling models and setting permissions
-   - Security groups (MCP Administrator, MCP User) for access control
-   - REST API endpoints:
-     - `/mcp/health` - Health check
-     - `/mcp/auth/validate` - API key validation
-     - `/mcp/models` - List enabled models
-     - `/mcp/models/{model}/access` - Check model permissions
-   - XML-RPC endpoints with MCP-specific access controls:
-     - `/mcp/xmlrpc/common` - Authentication
-     - `/mcp/xmlrpc/db` - Database operations
-     - `/mcp/xmlrpc/object` - Model operations
+- `odoo://res.partner/record/1` - Get partner with ID 1
+- `odoo://product.product/search?domain=[["qty_available",">",0]]` - Search products in stock
+- `odoo://sale.order/browse?ids=1,2,3` - Browse multiple sales orders
+- `odoo://res.partner/count?domain=[["customer_rank",">",0]]` - Count customers
+- `odoo://product.product/fields` - List available fields for products
 
-2. **Python Package** (this package): Runs separately and connects to Odoo:
-   - **Implemented**: Complete MCP server with resources and tools
-   - **Resources**: All 5 operations (record, search, browse, count, fields)
-   - **Tools**: Basic read operations (search_records, get_record, list_models)
-   - **Features**: Authentication, access control, data formatting, pagination
-
-## Security Considerations
+## Security
 
 - Always use HTTPS in production environments
-- Generate unique API keys for each integration
+- Keep your API keys secure and rotate them regularly
 - Configure model access carefully - only enable necessary models
-- Use read-only permissions where possible
-- Regularly review audit logs for suspicious activity
-- Keep both the Odoo module and Python package updated
+- The MCP module respects Odoo's built-in access rights and record rules
+- Each API key is linked to a specific user with their permissions
 
 ## Troubleshooting
 
-### Common Issues
+<details>
+<summary>Connection Issues</summary>
 
-1. **Connection Failed**: 
-   - Ensure Odoo is running and accessible
-   - Verify the URL in your `.env` file
-   - Check that MCP endpoints are available (test with `/mcp/health`)
+If you're getting connection errors:
+1. Verify your Odoo URL is correct and accessible
+2. Check that the MCP module is installed: visit `https://your-odoo.com/mcp/health`
+3. Ensure your firewall allows connections to Odoo
+</details>
 
-2. **Authentication Error**: 
-   - Verify your API key is valid and active in Odoo
-   - For username/password auth, ensure credentials are correct
-   - API key must have appropriate scope (read/write)
+<details>
+<summary>Authentication Errors</summary>
 
-3. **Model Not Found**: 
-   - Check that the model is enabled in Odoo MCP settings
-   - Navigate to Settings > MCP Server > Enabled Models in Odoo
-   - Ensure the model name is spelled correctly (e.g., `res.partner`)
+If authentication fails:
+1. Verify your API key is active in Odoo
+2. Check that the user has appropriate permissions
+3. Try regenerating the API key
+4. For username/password auth, ensure 2FA is not enabled
+</details>
 
-4. **Permission Denied**: 
-   - Verify the model has the required operation enabled (read/write/create/unlink)
-   - Check user's security group (MCP User or MCP Administrator)
-   - Review model-specific permissions in Odoo
+<details>
+<summary>Model Access Errors</summary>
 
-### Debug Mode
+If you can't access certain models:
+1. Go to Settings > MCP Server > Enabled Models in Odoo
+2. Ensure the model is in the list and has appropriate permissions
+3. Check that your user has access to that model in Odoo's security settings
+</details>
 
-Enable debug logging for more detailed information:
+<details>
+<summary>Debug Mode</summary>
+
+Enable debug logging for more information:
+
+```json
+{
+  "env": {
+    "ODOO_URL": "https://your-odoo.com",
+    "ODOO_API_KEY": "your-key",
+    "ODOO_MCP_LOG_LEVEL": "DEBUG"
+  }
+}
+```
+</details>
+
+## Development
+
+<details>
+<summary>Running from source</summary>
 
 ```bash
-ODOO_MCP_LOG_LEVEL=DEBUG python -m mcp_server_odoo
+# Clone the repository
+git clone https://github.com/ivnvxd/mcp-server-odoo.git
+cd mcp-server-odoo
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Run tests
+pytest --cov
+
+# Run the server
+python -m mcp_server_odoo
 ```
+</details>
 
-### Testing Connection
+<details>
+<summary>Testing with MCP Inspector</summary>
 
-Test your setup with this simple script:
+```bash
+# Using uvx
+npx @modelcontextprotocol/inspector uvx mcp-server-odoo
 
-```python
-from mcp_server_odoo import OdooConnection, AccessController, load_config
-
-# Load configuration
-config = load_config()
-
-# Test connection and authentication
-with OdooConnection(config) as conn:
-    print("✓ Connected to Odoo")
-    
-    conn.authenticate()
-    print(f"✓ Authenticated as user ID: {conn.uid}")
-    print(f"✓ Using database: {conn.database}")
-    
-    # Test access control
-    controller = AccessController(config)
-    models = controller.get_enabled_models()
-    print(f"✓ Found {len(models)} enabled models")
+# Using local installation
+npx @modelcontextprotocol/inspector python -m mcp_server_odoo
 ```
+</details>
 
 ## License
 
-This project is licensed under the Mozilla Public License 2.0 (MPL-2.0) - see the LICENSE file for details.
+This project is licensed under the Mozilla Public License 2.0 (MPL-2.0) - see the [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are very welcome! Please see the [CONTRIBUTING](CONTRIBUTING.md) guide for details.
+
+## Support
+
+Thank you for using this project! If you find it helpful and would like to support my work, kindly consider buying me a coffee. Your support is greatly appreciated!
+
+<a href="https://www.buymeacoffee.com/ivnvxd" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+
+And do not forget to give the project a star if you like it! :star:
