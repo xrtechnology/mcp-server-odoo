@@ -333,11 +333,12 @@ class TestMCPIntegration:
             # Test error scenarios with available features
 
             # 1. Invalid resource URI
-            with pytest.raises(ValueError):
+            from mcp.shared.exceptions import McpError
+            with pytest.raises(McpError):
                 await connected_client.read_resource("invalid://uri")
 
             # 2. Non-existent resource
-            with pytest.raises(ValueError):
+            with pytest.raises(McpError):
                 await connected_client.read_resource("odoo://res.partner/record/999999999")
 
 

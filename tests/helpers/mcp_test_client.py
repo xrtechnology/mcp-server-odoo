@@ -249,15 +249,21 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     async def main():
-        # Use test configuration
-        test_env = {
-            "ODOO_URL": "http://localhost:8069",
-            "ODOO_DB": "mcp",
-            "ODOO_API_KEY": "0ef5b399e9ee9c11b053dfb6eeba8de473c29fcd",
-        }
-
-        # Update environment
-        os.environ.update(test_env)
+        # Check that required environment variables are set
+        required_vars = ["ODOO_URL", "ODOO_API_KEY"]
+        missing_vars = [var for var in required_vars if not os.getenv(var)]
+        
+        if missing_vars:
+            print("ERROR: Missing required environment variables:")
+            for var in missing_vars:
+                print(f"  - {var}")
+            print("\nPlease configure these in your .env file")
+            print("Copy .env.example to .env and update with your values")
+            return
+        
+        # Optional variables can have defaults
+        if not os.getenv("ODOO_DB"):
+            os.environ["ODOO_DB"] = "mcp"  # Will be auto-detected if not set
 
         # Connect to server
         client = MCPTestClient()

@@ -1,5 +1,6 @@
 """Pytest configuration and fixtures for Odoo MCP Server tests."""
 
+import os
 import socket
 import xmlrpc.client
 
@@ -114,11 +115,18 @@ def handle_rate_limit():
 @pytest.fixture
 def test_config_with_server_check(odoo_server_required) -> OdooConfig:
     """Create test configuration, but skip if server not available."""
+    # Require environment variables to be set
+    if not os.getenv("ODOO_URL"):
+        pytest.skip("ODOO_URL environment variable not set. Please configure .env file.")
+    
+    if not os.getenv("ODOO_API_KEY"):
+        pytest.skip("ODOO_API_KEY environment variable not set. Please configure .env file.")
+    
     return OdooConfig(
-        url="http://localhost:8069",
-        api_key="test_api_key",
-        database="mcp",
-        log_level="INFO",
-        default_limit=10,
-        max_limit=100,
+        url=os.getenv("ODOO_URL"),
+        api_key=os.getenv("ODOO_API_KEY"),
+        database=os.getenv("ODOO_DB", "mcp"),  # DB can be auto-detected
+        log_level=os.getenv("ODOO_MCP_LOG_LEVEL", "INFO"),
+        default_limit=int(os.getenv("ODOO_MCP_DEFAULT_LIMIT", "10")),
+        max_limit=int(os.getenv("ODOO_MCP_MAX_LIMIT", "100")),
     )
