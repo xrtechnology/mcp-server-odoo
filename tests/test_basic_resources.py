@@ -7,14 +7,15 @@ from mcp.server.fastmcp import FastMCP
 
 from mcp_server_odoo.access_control import AccessControlError, AccessController
 from mcp_server_odoo.config import OdooConfig
-from mcp_server_odoo.odoo_connection import OdooConnection, OdooConnectionError
-from mcp_server_odoo.resources import (
-    OdooResourceHandler,
-    ResourceError,
-    ResourceNotFoundError,
-    ResourcePermissionError,
-    register_resources,
+from mcp_server_odoo.error_handling import (
+    NotFoundError,
+    ValidationError,
 )
+from mcp_server_odoo.error_handling import (
+    PermissionError as MCPPermissionError,
+)
+from mcp_server_odoo.odoo_connection import OdooConnection, OdooConnectionError
+from mcp_server_odoo.resources import OdooResourceHandler, register_resources
 
 
 @pytest.fixture
@@ -131,7 +132,7 @@ class TestOdooResourceHandler:
         mock_connection.search.return_value = []
 
         # Test retrieval
-        with pytest.raises(ResourceNotFoundError) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await resource_handler._handle_record_retrieval("res.partner", "999")
 
         assert "Record not found: res.partner with ID 999 does not exist" in str(exc_info.value)
@@ -145,13 +146,13 @@ class TestOdooResourceHandler:
     async def test_handle_record_retrieval_invalid_id(self, resource_handler):
         """Test invalid record ID."""
         # Test with non-numeric ID
-        with pytest.raises(ResourceError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await resource_handler._handle_record_retrieval("res.partner", "abc")
 
         assert "Invalid record ID 'abc'" in str(exc_info.value)
 
         # Test with negative ID
-        with pytest.raises(ResourceError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await resource_handler._handle_record_retrieval("res.partner", "-5")
 
         assert "Record ID must be positive" in str(exc_info.value)
@@ -167,7 +168,7 @@ class TestOdooResourceHandler:
         )
 
         # Test retrieval
-        with pytest.raises(ResourcePermissionError) as exc_info:
+        with pytest.raises(MCPPermissionError) as exc_info:
             await resource_handler._handle_record_retrieval("res.partner", "1")
 
         assert "Access denied:" in str(exc_info.value)
@@ -181,7 +182,7 @@ class TestOdooResourceHandler:
         mock_connection.is_authenticated = False
 
         # Test retrieval
-        with pytest.raises(ResourceError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await resource_handler._handle_record_retrieval("res.partner", "1")
 
         assert "Not authenticated with Odoo" in str(exc_info.value)
@@ -195,7 +196,7 @@ class TestOdooResourceHandler:
         mock_connection.search.side_effect = OdooConnectionError("Connection lost")
 
         # Test retrieval
-        with pytest.raises(ResourceError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await resource_handler._handle_record_retrieval("res.partner", "1")
 
         assert "Connection error:" in str(exc_info.value)
@@ -277,7 +278,7 @@ class TestResourceIntegration:
 
         try:
             # Test with non-existent ID
-            with pytest.raises(ResourceNotFoundError):
+            with pytest.raises(NotFoundError):
                 await handler._handle_record_retrieval("res.partner", "999999999")
 
         finally:
@@ -303,7 +304,7 @@ class TestResourceIntegration:
 
         try:
             # Test with non-enabled model
-            with pytest.raises(ResourcePermissionError):
+            with pytest.raises(MCPPermissionError):
                 await handler._handle_record_retrieval("account.invoice", "1")
 
         finally:

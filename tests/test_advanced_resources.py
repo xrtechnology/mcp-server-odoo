@@ -9,12 +9,14 @@ from mcp.server.fastmcp import FastMCP
 
 from mcp_server_odoo.access_control import AccessControlError, AccessController
 from mcp_server_odoo.config import OdooConfig, load_config
-from mcp_server_odoo.odoo_connection import OdooConnection
-from mcp_server_odoo.resources import (
-    OdooResourceHandler,
-    ResourceError,
-    ResourcePermissionError,
+from mcp_server_odoo.error_handling import (
+    PermissionError as MCPPermissionError,
 )
+from mcp_server_odoo.error_handling import (
+    ValidationError,
+)
+from mcp_server_odoo.odoo_connection import OdooConnection
+from mcp_server_odoo.resources import OdooResourceHandler
 
 # Import skip_on_rate_limit decorator
 from .test_xmlrpc_operations import skip_on_rate_limit
@@ -152,7 +154,7 @@ class TestBrowseResource:
         mock_access_controller.validate_model_access.return_value = None
 
         # Execute browse and expect error
-        with pytest.raises(ResourceError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await resource_handler._handle_browse("res.partner", "")
 
         assert "No valid IDs provided" in str(exc_info.value)
@@ -166,7 +168,7 @@ class TestBrowseResource:
         )
 
         # Execute browse and expect permission error
-        with pytest.raises(ResourcePermissionError) as exc_info:
+        with pytest.raises(MCPPermissionError) as exc_info:
             await resource_handler._handle_browse("sale.order", "1,2,3")
 
         assert "Access denied" in str(exc_info.value)

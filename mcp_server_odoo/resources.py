@@ -5,7 +5,6 @@ standardized URIs using FastMCP decorators.
 """
 
 import json
-import logging
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
@@ -13,31 +12,25 @@ from mcp.server.fastmcp import FastMCP
 
 from .access_control import AccessControlError, AccessController
 from .config import OdooConfig
+from .error_handling import (
+    ErrorContext,
+    NotFoundError,
+    PermissionError,
+    ValidationError,
+)
 from .formatters import DatasetFormatter, RecordFormatter
+from .logging_config import get_logger, perf_logger
 from .odoo_connection import OdooConnection, OdooConnectionError
 from .uri_schema import (
     build_search_uri,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
-
-class ResourceError(Exception):
-    """Base exception for resource operations."""
-
-    pass
-
-
-class ResourceNotFoundError(ResourceError):
-    """Exception raised when a resource is not found."""
-
-    pass
-
-
-class ResourcePermissionError(ResourceError):
-    """Exception raised when access to a resource is denied."""
-
-    pass
+# Legacy error type aliases for backward compatibility
+ResourceError = ValidationError
+ResourceNotFoundError = NotFoundError
+ResourcePermissionError = PermissionError
 
 
 class OdooResourceHandler:
@@ -184,38 +177,43 @@ class OdooResourceHandler:
             Formatted record data
 
         Raises:
-            ResourceNotFoundError: If record doesn't exist
-            ResourcePermissionError: If access is denied
-            ResourceError: For other errors
+            NotFoundError: If record doesn't exist
+            PermissionError: If access is denied
+            ValidationError: For invalid inputs
         """
+        context = ErrorContext(model=model, operation="get_record", record_id=record_id)
+
         logger.info(f"Retrieving record: {model}/{record_id}")
 
         try:
-            # Validate record ID
-            try:
-                record_id_int = int(record_id)
-                if record_id_int <= 0:
-                    raise ValueError("Record ID must be positive")
-            except ValueError as e:
-                raise ResourceError(f"Invalid record ID '{record_id}': {e}") from e
+            with perf_logger.track_operation("resource_get_record", model=model):
+                # Validate record ID
+                try:
+                    record_id_int = int(record_id)
+                    if record_id_int <= 0:
+                        raise ValueError("Record ID must be positive")
+                except ValueError as e:
+                    raise ValidationError(
+                        f"Invalid record ID '{record_id}': {e}", context=context
+                    ) from e
 
-            # Check model access permissions
-            try:
-                self.access_controller.validate_model_access(model, "read")
-            except AccessControlError as e:
-                logger.warning(f"Access denied for {model}.read: {e}")
-                raise ResourcePermissionError(f"Access denied: {e}") from e
+                # Check model access permissions
+                try:
+                    self.access_controller.validate_model_access(model, "read")
+                except AccessControlError as e:
+                    logger.warning(f"Access denied for {model}.read: {e}")
+                    raise PermissionError(f"Access denied: {e}", context=context) from e
 
-            # Ensure we're connected
-            if not self.connection.is_authenticated:
-                raise ResourceError("Not authenticated with Odoo")
+                # Ensure we're connected
+                if not self.connection.is_authenticated:
+                    raise ValidationError("Not authenticated with Odoo", context=context)
 
             # Search for the record to check if it exists
             record_ids = self.connection.search(model, [("id", "=", record_id_int)])
 
             if not record_ids:
-                raise ResourceNotFoundError(
-                    f"Record not found: {model} with ID {record_id} does not exist"
+                raise NotFoundError(
+                    f"Record not found: {model} with ID {record_id} does not exist", context=context
                 )
 
             # Read the record

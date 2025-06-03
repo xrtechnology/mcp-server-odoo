@@ -7,8 +7,11 @@ from mcp.server.fastmcp import FastMCP
 
 from mcp_server_odoo.access_control import AccessControlError, AccessController
 from mcp_server_odoo.config import OdooConfig
+from mcp_server_odoo.error_handling import (
+    ValidationError,
+)
 from mcp_server_odoo.odoo_connection import OdooConnection, OdooConnectionError
-from mcp_server_odoo.tools import OdooToolHandler, ToolError, register_tools
+from mcp_server_odoo.tools import OdooToolHandler, register_tools
 
 
 class TestOdooToolHandler:
@@ -133,7 +136,7 @@ class TestOdooToolHandler:
         search_records = mock_app._tools["search_records"]
 
         # Call the tool and expect error
-        with pytest.raises(ToolError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await search_records(model="res.partner", domain=[], fields=None, limit=10)
 
         assert "Access denied" in str(exc_info.value)
@@ -150,7 +153,7 @@ class TestOdooToolHandler:
         search_records = mock_app._tools["search_records"]
 
         # Call the tool and expect error
-        with pytest.raises(ToolError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await search_records(model="res.partner")
 
         assert "Not authenticated" in str(exc_info.value)
@@ -167,7 +170,7 @@ class TestOdooToolHandler:
         search_records = mock_app._tools["search_records"]
 
         # Call the tool and expect error
-        with pytest.raises(ToolError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await search_records(model="res.partner")
 
         assert "Connection error" in str(exc_info.value)
@@ -210,7 +213,7 @@ class TestOdooToolHandler:
         get_record = mock_app._tools["get_record"]
 
         # Call the tool and expect error
-        with pytest.raises(ToolError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await get_record(model="res.partner", record_id=999)
 
         assert "Record not found" in str(exc_info.value)
@@ -229,7 +232,7 @@ class TestOdooToolHandler:
         get_record = mock_app._tools["get_record"]
 
         # Call the tool and expect error
-        with pytest.raises(ToolError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await get_record(model="res.partner", record_id=1)
 
         assert "Access denied" in str(exc_info.value)
@@ -246,7 +249,7 @@ class TestOdooToolHandler:
         get_record = mock_app._tools["get_record"]
 
         # Call the tool and expect error
-        with pytest.raises(ToolError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await get_record(model="res.partner", record_id=1)
 
         assert "Not authenticated" in str(exc_info.value)
@@ -263,7 +266,7 @@ class TestOdooToolHandler:
         get_record = mock_app._tools["get_record"]
 
         # Call the tool and expect error
-        with pytest.raises(ToolError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await get_record(model="res.partner", record_id=1)
 
         assert "Connection error" in str(exc_info.value)
@@ -305,7 +308,7 @@ class TestOdooToolHandler:
         list_models = mock_app._tools["list_models"]
 
         # Call the tool and expect error
-        with pytest.raises(ToolError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await list_models()
 
         assert "Failed to list models" in str(exc_info.value)

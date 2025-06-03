@@ -9,12 +9,14 @@ from mcp.server.fastmcp import FastMCP
 
 from mcp_server_odoo.access_control import AccessControlError, AccessController
 from mcp_server_odoo.config import OdooConfig, load_config
-from mcp_server_odoo.odoo_connection import OdooConnection, OdooConnectionError
-from mcp_server_odoo.resources import (
-    OdooResourceHandler,
-    ResourceError,
-    ResourcePermissionError,
+from mcp_server_odoo.error_handling import (
+    PermissionError as MCPPermissionError,
 )
+from mcp_server_odoo.error_handling import (
+    ValidationError,
+)
+from mcp_server_odoo.odoo_connection import OdooConnection, OdooConnectionError
+from mcp_server_odoo.resources import OdooResourceHandler
 
 
 @pytest.fixture
@@ -276,7 +278,7 @@ class TestSearchResource:
         )
 
         # Execute search and expect permission error
-        with pytest.raises(ResourcePermissionError) as exc_info:
+        with pytest.raises(MCPPermissionError) as exc_info:
             await resource_handler._handle_search("sale.order", None, None, None, None, None)
 
         assert "Access denied" in str(exc_info.value)
@@ -291,7 +293,7 @@ class TestSearchResource:
         mock_connection.search_count.side_effect = OdooConnectionError("Connection lost")
 
         # Execute search and expect error
-        with pytest.raises(ResourceError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await resource_handler._handle_search("res.partner", None, None, None, None, None)
 
         assert "Connection error" in str(exc_info.value)
@@ -409,7 +411,7 @@ class TestSearchResourceIntegration:
                 0,  # Offset
                 "name asc",  # Order
             )
-        except ResourceError as e:
+        except ValidationError as e:
             if "429" in str(e) or "Too many requests" in str(e).lower() or "Rate limit" in str(e):
                 pytest.skip("Rate limited by server")
             raise
