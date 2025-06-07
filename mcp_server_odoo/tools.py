@@ -5,6 +5,7 @@ Tools are different from resources - they can have side effects and perform
 actions like creating, updating, or deleting records.
 """
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 from mcp.server.fastmcp import FastMCP
@@ -49,6 +50,52 @@ class OdooToolHandler:
 
         # Register tools
         self._register_tools()
+
+    def _format_datetime(self, value: str) -> str:
+        """Format datetime values to ISO 8601 with timezone."""
+        if not value or not isinstance(value, str):
+            return value
+
+        # Handle Odoo's compact datetime format (YYYYMMDDTHH:MM:SS)
+        if len(value) == 17 and "T" in value and "-" not in value:
+            try:
+                dt = datetime.strptime(value, "%Y%m%dT%H:%M:%S")
+                return dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+            except ValueError:
+                pass
+
+        # Handle standard Odoo datetime format (YYYY-MM-DD HH:MM:SS)
+        if " " in value and len(value) == 19:
+            try:
+                dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+                return dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+            except ValueError:
+                pass
+
+        return value
+
+    def _process_record_dates(self, record: Dict[str, Any], model: str) -> Dict[str, Any]:
+        """Process datetime fields in a record to ensure proper formatting."""
+        # Get field metadata if available
+        try:
+            fields_info = self.connection.fields_get(model)
+            for field_name, field_value in record.items():
+                if field_name in fields_info:
+                    field_type = fields_info[field_name].get("type")
+                    if field_type == "datetime" and isinstance(field_value, str):
+                        record[field_name] = self._format_datetime(field_value)
+        except Exception:
+            # If we can't get field info, try to detect datetime fields by pattern
+            for field_name, field_value in record.items():
+                if isinstance(field_value, str) and (
+                    (len(field_value) == 17 and "T" in field_value and "-" not in field_value)
+                    or (len(field_value) == 19 and " " in field_value)
+                ):
+                    formatted = self._format_datetime(field_value)
+                    if formatted != field_value:
+                        record[field_name] = formatted
+
+        return record
 
     def _register_tools(self):
         """Register all tool handlers with FastMCP."""
@@ -191,6 +238,8 @@ class OdooToolHandler:
                 records = []
                 if record_ids:
                     records = self.connection.read(model, record_ids, fields)
+                    # Process datetime fields in each record
+                    records = [self._process_record_dates(record, model) for record in records]
 
                 return {
                     "records": records,
@@ -230,7 +279,9 @@ class OdooToolHandler:
                 if not records:
                     raise ToolError(f"Record not found: {model} with ID {record_id}")
 
-                return records[0]
+                # Process datetime fields in the record
+                record = self._process_record_dates(records[0], model)
+                return record
 
         except NotFoundError as e:
             raise ToolError(str(e)) from e

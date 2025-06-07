@@ -195,6 +195,7 @@ class TestRecordFormatter:
             "name": "Test",
             "date_field": "2024-01-15",
             "datetime_field": "2024-01-15 14:30:00",
+            "datetime_compact": "20240115T14:30:00",  # Odoo compact format
             "date_obj": date(2024, 1, 15),
             "datetime_obj": datetime(2024, 1, 15, 14, 30),
         }
@@ -202,6 +203,7 @@ class TestRecordFormatter:
         fields_metadata = {
             "date_field": {"type": "date"},
             "datetime_field": {"type": "datetime"},
+            "datetime_compact": {"type": "datetime"},
             "date_obj": {"type": "date"},
             "datetime_obj": {"type": "datetime"},
         }
@@ -209,9 +211,10 @@ class TestRecordFormatter:
         result = formatter.format_record(record, fields_metadata)
 
         assert "date_field: 2024-01-15" in result
-        assert "datetime_field: 2024-01-15 14:30:00" in result
+        assert "datetime_field: 2024-01-15T14:30:00+00:00" in result
+        assert "datetime_compact: 2024-01-15T14:30:00+00:00" in result
         assert "date_obj: 2024-01-15" in result
-        assert "datetime_obj: 2024-01-15T14:30:00" in result
+        assert "datetime_obj: 2024-01-15T14:30:00+00:00" in result
 
 
 class TestDatasetFormatter:

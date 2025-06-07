@@ -183,9 +183,36 @@ class RecordFormatter:
         # Date/time fields
         elif field_type in ("date", "datetime"):
             if isinstance(value, str):
-                return value  # Already formatted
+                # Handle Odoo's datetime format (YYYYMMDDTHH:MM:SS)
+                if (
+                    field_type == "datetime"
+                    and len(value) == 17
+                    and "T" in value
+                    and "-" not in value
+                ):
+                    try:
+                        # Parse Odoo's compact datetime format
+                        dt = datetime.strptime(value, "%Y%m%dT%H:%M:%S")
+                        # Return proper ISO format with UTC timezone
+                        return dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                    except ValueError:
+                        pass
+                # Handle standard datetime formats
+                elif field_type == "datetime" and " " in value:
+                    try:
+                        # Parse standard Odoo datetime format
+                        dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+                        return dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                    except ValueError:
+                        pass
+                return value  # Return as-is if parsing fails
             elif isinstance(value, (datetime, date)):
-                return value.isoformat()
+                if isinstance(value, datetime):
+                    # Ensure datetime includes timezone
+                    return value.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                else:
+                    # Date only
+                    return value.isoformat()
             return str(value)
 
         # Boolean fields
