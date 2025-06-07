@@ -97,6 +97,117 @@ class OdooToolHandler:
 
         return record
 
+    def _should_include_field_by_default(self, field_name: str, field_info: Dict[str, Any]) -> bool:
+        """Determine if a field should be included in default response.
+
+        Args:
+            field_name: Name of the field
+            field_info: Field metadata from fields_get()
+
+        Returns:
+            True if field should be included in default response
+        """
+        # Always include essential fields
+        always_include = {"id", "name", "display_name", "active"}
+        if field_name in always_include:
+            return True
+
+        # Exclude system/technical fields by prefix
+        exclude_prefixes = ("_", "message_", "activity_", "website_message_")
+        if field_name.startswith(exclude_prefixes):
+            return False
+
+        # Exclude specific technical fields
+        exclude_fields = {
+            "write_date",
+            "create_date",
+            "write_uid",
+            "create_uid",
+            "__last_update",
+            "access_token",
+            "access_warning",
+            "access_url",
+        }
+        if field_name in exclude_fields:
+            return False
+
+        # Get field type
+        field_type = field_info.get("type", "")
+
+        # Exclude binary and large fields
+        if field_type in ("binary", "image", "html"):
+            return False
+
+        # Exclude expensive computed fields (non-stored)
+        if field_info.get("compute") and not field_info.get("store", True):
+            return False
+
+        # Exclude one2many and many2many fields (can be large)
+        if field_type in ("one2many", "many2many"):
+            return False
+
+        # Include required fields
+        if field_info.get("required"):
+            return True
+
+        # Include simple stored fields that are searchable
+        if field_info.get("store", True) and field_info.get("searchable", True):
+            if field_type in (
+                "char",
+                "text",
+                "boolean",
+                "integer",
+                "float",
+                "date",
+                "datetime",
+                "selection",
+                "many2one",
+            ):
+                return True
+
+        return False
+
+    def _get_smart_default_fields(self, model: str) -> Optional[List[str]]:
+        """Get smart default fields for a model.
+
+        Args:
+            model: The Odoo model name
+
+        Returns:
+            List of field names to include by default, or None if unable to determine
+        """
+        try:
+            # Get all field definitions
+            fields_info = self.connection.fields_get(model)
+
+            # Apply smart filtering
+            default_fields = [
+                field_name
+                for field_name, field_info in fields_info.items()
+                if self._should_include_field_by_default(field_name, field_info)
+            ]
+
+            # Ensure we have at least some fields
+            if not default_fields:
+                default_fields = ["id", "name", "display_name"]
+
+            # Sort fields for consistent output
+            # Priority order: id, name, display_name, then alphabetical
+            priority_fields = ["id", "name", "display_name", "active"]
+            other_fields = sorted(f for f in default_fields if f not in priority_fields)
+
+            final_fields = [f for f in priority_fields if f in default_fields] + other_fields
+
+            logger.debug(
+                f"Smart default fields for {model}: {len(final_fields)} of {len(fields_info)} fields"
+            )
+            return final_fields
+
+        except Exception as e:
+            logger.warning(f"Could not determine default fields for {model}: {e}")
+            # Return None to indicate we should get all fields
+            return None
+
     def _register_tools(self):
         """Register all tool handlers with FastMCP."""
 
@@ -130,15 +241,38 @@ class OdooToolHandler:
             record_id: int,
             fields: Optional[List[str]] = None,
         ) -> Dict[str, Any]:
-            """Get a specific record by ID.
+            """Get a specific record by ID with smart field selection.
+
+            This tool supports selective field retrieval to optimize performance and response size.
+            By default, returns a smart selection of commonly-used fields based on the model's field metadata.
 
             Args:
                 model: The Odoo model name (e.g., 'res.partner')
                 record_id: The record ID
-                fields: List of fields to return (None for all fields)
+                fields: Field selection options:
+                    - None (default): Returns smart selection of common fields
+                    - ["field1", "field2", ...]: Returns only specified fields
+                    - ["__all__"]: Returns ALL fields (warning: can be very large)
+
+            Workflow for field discovery:
+            1. To see all available fields for a model, use the resource:
+               read("odoo://res.partner/fields")
+            2. Then request specific fields:
+               get_record("res.partner", 1, fields=["name", "email", "phone"])
+
+            Examples:
+                # Get smart defaults (recommended)
+                get_record("res.partner", 1)
+
+                # Get specific fields only
+                get_record("res.partner", 1, fields=["name", "email", "phone"])
+
+                # Get ALL fields (use with caution)
+                get_record("res.partner", 1, fields=["__all__"])
 
             Returns:
-                Dictionary with record data
+                Dictionary with record data containing requested fields.
+                When using smart defaults, includes _metadata with field statistics.
             """
             return await self._handle_get_record_tool(model, record_id, fields)
 
@@ -273,14 +407,56 @@ class OdooToolHandler:
                 if not self.connection.is_authenticated:
                     raise ValidationError("Not authenticated with Odoo")
 
+                # Determine which fields to fetch
+                fields_to_fetch = fields
+                use_smart_defaults = False
+                total_fields = None
+
+                if fields is None:
+                    # Use smart field selection
+                    fields_to_fetch = self._get_smart_default_fields(model)
+                    use_smart_defaults = True
+                    logger.debug(
+                        f"Using smart defaults for {model}: {len(fields_to_fetch) if fields_to_fetch else 'all'} fields"
+                    )
+                elif fields == ["__all__"]:
+                    # Explicit request for all fields
+                    fields_to_fetch = None  # Odoo interprets None as all fields
+                    logger.debug(f"Fetching all fields for {model}")
+                else:
+                    # Specific fields requested
+                    logger.debug(f"Fetching specific fields for {model}: {fields}")
+
                 # Read the record
-                records = self.connection.read(model, [record_id], fields)
+                records = self.connection.read(model, [record_id], fields_to_fetch)
 
                 if not records:
                     raise ToolError(f"Record not found: {model} with ID {record_id}")
 
                 # Process datetime fields in the record
                 record = self._process_record_dates(records[0], model)
+
+                # Add metadata when using smart defaults
+                if use_smart_defaults:
+                    try:
+                        # Get total field count for metadata
+                        all_fields_info = self.connection.fields_get(model)
+                        total_fields = len(all_fields_info)
+                    except Exception:
+                        pass  # Don't fail if we can't get field count
+
+                    record["_metadata"] = {
+                        "fields_returned": (
+                            len(record) - 1 if "_metadata" in record else len(record)
+                        ),
+                        "field_selection_method": "smart_defaults",
+                        "note": "Limited fields returned for performance. Use fields=['__all__'] for all fields or see odoo://{}/fields for available fields.".format(
+                            model
+                        ),
+                    }
+                    if total_fields:
+                        record["_metadata"]["total_fields_available"] = total_fields
+
                 return record
 
         except NotFoundError as e:
