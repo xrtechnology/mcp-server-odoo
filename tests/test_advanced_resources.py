@@ -97,7 +97,8 @@ class TestBrowseResource:
 
         # Verify calls
         mock_access_controller.validate_model_access.assert_called_once_with("res.partner", "read")
-        mock_connection.read.assert_called_once_with("res.partner", [1, 3, 5])
+        # After smart field filtering, read is called with specific fields
+        mock_connection.read.assert_called_once_with("res.partner", [1, 3, 5], ["name", "email"])
 
         # Check result format
         assert "Browse Results: res.partner" in result

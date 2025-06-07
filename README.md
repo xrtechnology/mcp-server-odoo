@@ -208,6 +208,11 @@ Search for records in any Odoo model with filters.
 }
 ```
 
+**Field Selection Options:**
+- Omit `fields` or set to `null`: Returns smart selection of common fields
+- Specify field list: Returns only those specific fields
+- Use `["__all__"]`: Returns all fields (use with caution)
+
 ### `get_record`
 Retrieve a specific record by ID.
 
@@ -218,6 +223,11 @@ Retrieve a specific record by ID.
   "fields": ["name", "email", "street", "city"]
 }
 ```
+
+**Field Selection Options:**
+- Omit `fields` or set to `null`: Returns smart selection of common fields with metadata
+- Specify field list: Returns only those specific fields
+- Use `["__all__"]`: Returns all fields without metadata
 
 ### `list_models`
 List all models enabled for MCP access.

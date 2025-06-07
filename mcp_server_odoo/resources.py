@@ -216,8 +216,33 @@ class OdooResourceHandler:
                     f"Record not found: {model} with ID {record_id} does not exist", context=context
                 )
 
-            # Read the record
-            records = self.connection.read(model, record_ids)
+            # Read the record with smart field selection to avoid serialization issues
+            # Get field metadata to determine which fields to fetch
+            try:
+                fields_info = self.connection.fields_get(model)
+                # Filter out fields that might cause serialization issues
+                safe_fields = []
+                for field_name, field_info in fields_info.items():
+                    field_type = field_info.get("type", "")
+                    # Skip fields that commonly cause XML-RPC serialization issues
+                    # Expanded list to include html fields which often contain Markup objects
+                    problematic_types = ["binary", "serialized", "html"]
+                    if (
+                        field_type not in problematic_types
+                        and not field_name.startswith("__")
+                        and not field_name.startswith("_")
+                    ):  # Also skip private fields
+                        safe_fields.append(field_name)
+
+                if safe_fields:
+                    records = self.connection.read(model, record_ids, safe_fields)
+                else:
+                    # Fallback to all fields if we can't determine safe fields
+                    records = self.connection.read(model, record_ids)
+            except Exception as e:
+                logger.debug(f"Could not get field metadata, reading all fields: {e}")
+                # If we can't get field info, try to read all fields
+                records = self.connection.read(model, record_ids)
 
             if not records:
                 raise ResourceNotFoundError(
@@ -527,8 +552,33 @@ class OdooResourceHandler:
             if not id_list:
                 raise ResourceError("No valid IDs provided")
 
-            # Read records in batch
-            records = self.connection.read(model, id_list)
+            # Read records in batch with smart field selection to avoid serialization issues
+            # Get field metadata to determine which fields to fetch
+            try:
+                fields_info = self.connection.fields_get(model)
+                # Filter out fields that might cause serialization issues
+                safe_fields = []
+                for field_name, field_info in fields_info.items():
+                    field_type = field_info.get("type", "")
+                    # Skip fields that commonly cause XML-RPC serialization issues
+                    # Expanded list to include html fields which often contain Markup objects
+                    problematic_types = ["binary", "serialized", "html"]
+                    if (
+                        field_type not in problematic_types
+                        and not field_name.startswith("__")
+                        and not field_name.startswith("_")
+                    ):  # Also skip private fields
+                        safe_fields.append(field_name)
+
+                if safe_fields:
+                    records = self.connection.read(model, id_list, safe_fields)
+                else:
+                    # Fallback to all fields if we can't determine safe fields
+                    records = self.connection.read(model, id_list)
+            except Exception as e:
+                logger.debug(f"Could not get field metadata, reading all fields: {e}")
+                # If we can't get field info, try to read all fields
+                records = self.connection.read(model, id_list)
 
             # Get field metadata for formatting
             try:

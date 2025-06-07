@@ -230,12 +230,12 @@ class TestCachingIntegration:
             if partner_ids:
                 # First read - hits server
                 start1 = time.time()
-                records1 = conn.read("res.partner", partner_ids[:2])
+                records1 = conn.read("res.partner", partner_ids[:2], ["name", "email", "phone"])
                 duration1 = time.time() - start1
 
                 # Second read - should use cache
                 start2 = time.time()
-                records2 = conn.read("res.partner", partner_ids[:2])
+                records2 = conn.read("res.partner", partner_ids[:2], ["name", "email", "phone"])
                 duration2 = time.time() - start2
 
                 # Cached read should be faster
@@ -244,7 +244,7 @@ class TestCachingIntegration:
 
                 # Read mix of cached and uncached
                 mixed_ids = [partner_ids[0], partner_ids[3]]  # One cached, one new
-                records3 = conn.read("res.partner", mixed_ids)
+                records3 = conn.read("res.partner", mixed_ids, ["name", "email", "phone"])
                 assert len(records3) == 2
 
                 # Check cache stats
@@ -276,14 +276,14 @@ class TestCachingIntegration:
                 for i in range(10):
                     record_id = partner_ids[i]
                     start = time.time()
-                    conn.read("res.partner", [record_id])
+                    conn.read("res.partner", [record_id], ["name", "email", "phone", "city"])
                     total_time_without_cache += time.time() - start
 
                 # Second pass - using cache
                 for i in range(10):
                     record_id = partner_ids[i]
                     start = time.time()
-                    conn.read("res.partner", [record_id])
+                    conn.read("res.partner", [record_id], ["name", "email", "phone", "city"])
                     total_time_with_cache += time.time() - start
 
                 # Cache should provide significant speedup

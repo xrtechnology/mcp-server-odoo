@@ -339,8 +339,22 @@ class TestFormattingIntegration:
                 # Get fields metadata
                 fields_meta = connection.fields_get("res.partner")
 
-                # Read the record
-                records = connection.read("res.partner", partner_ids)
+                # Read the record with specific fields to avoid marshaling issues
+                records = connection.read(
+                    "res.partner",
+                    partner_ids,
+                    [
+                        "name",
+                        "email",
+                        "phone",
+                        "street",
+                        "city",
+                        "country_id",
+                        "is_company",
+                        "child_ids",
+                        "parent_id",
+                    ],
+                )
 
                 # Format the record
                 formatter = RecordFormatter("res.partner")
@@ -424,8 +438,22 @@ class TestFormattingIntegration:
                 # Get fields metadata
                 fields_meta = connection.fields_get("res.partner")
 
-                # Read the record
-                records = connection.read("res.partner", partner_ids)
+                # Read the record with specific fields to avoid marshaling issues
+                records = connection.read(
+                    "res.partner",
+                    partner_ids,
+                    [
+                        "name",
+                        "email",
+                        "phone",
+                        "street",
+                        "city",
+                        "country_id",
+                        "is_company",
+                        "child_ids",
+                        "parent_id",
+                    ],
+                )
 
                 # Format the record
                 formatter = RecordFormatter("res.partner")
@@ -480,8 +508,15 @@ class TestFormattingIntegration:
                 # Get fields metadata
                 fields_meta = connection.fields_get(model)
 
-                # Read the record
-                records = connection.read(model, product_ids)
+                # Read the record with limited fields to avoid marshaling issues
+                # Select fields that are likely to exist in both product and partner models
+                basic_fields = ["name", "active", "create_date", "write_date"]
+                if model == "res.partner":
+                    basic_fields.extend(["email", "phone", "is_company", "country_id"])
+                else:  # product.product
+                    basic_fields.extend(["list_price", "standard_price", "type", "categ_id"])
+
+                records = connection.read(model, product_ids, basic_fields)
 
                 # Format the record
                 formatter = RecordFormatter(model)

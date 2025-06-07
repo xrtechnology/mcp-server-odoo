@@ -226,7 +226,10 @@ class OdooToolHandler:
             Args:
                 model: The Odoo model name (e.g., 'res.partner')
                 domain: Odoo domain filter (e.g., [['is_company', '=', True]])
-                fields: List of fields to return (None for all fields)
+                fields: Field selection options:
+                    - None (default): Returns smart selection of common fields
+                    - ["field1", "field2", ...]: Returns only specified fields
+                    - ["__all__"]: Returns ALL fields (warning: may cause serialization errors)
                 limit: Maximum number of records to return
                 offset: Number of records to skip
                 order: Sort order (e.g., 'name asc')
@@ -389,10 +392,23 @@ class OdooToolHandler:
                     model, domain, limit=limit, offset=offset, order=order
                 )
 
+                # Determine which fields to fetch
+                fields_to_fetch = fields
+                if fields is None:
+                    # Use smart field selection to avoid serialization issues
+                    fields_to_fetch = self._get_smart_default_fields(model)
+                    logger.debug(
+                        f"Using smart defaults for {model} search: {len(fields_to_fetch) if fields_to_fetch else 'all'} fields"
+                    )
+                elif fields == ["__all__"]:
+                    # Explicit request for all fields
+                    fields_to_fetch = None  # Odoo interprets None as all fields
+                    logger.debug(f"Fetching all fields for {model} search")
+
                 # Read records
                 records = []
                 if record_ids:
-                    records = self.connection.read(model, record_ids, fields)
+                    records = self.connection.read(model, record_ids, fields_to_fetch)
                     # Process datetime fields in each record
                     records = [self._process_record_dates(record, model) for record in records]
 
