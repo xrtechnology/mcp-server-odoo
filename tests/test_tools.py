@@ -364,9 +364,10 @@ class TestOdooToolHandler:
         result = await list_models()
 
         # Verify result
-        assert len(result) == 2
-        assert result[0]["model"] == "res.partner"
-        assert result[1]["model"] == "sale.order"
+        assert "models" in result
+        assert len(result["models"]) == 2
+        assert result["models"][0]["model"] == "res.partner"
+        assert result["models"][1]["model"] == "sale.order"
 
         # Verify calls
         mock_access_controller.get_enabled_models.assert_called_once()

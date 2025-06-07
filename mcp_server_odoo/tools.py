@@ -143,11 +143,11 @@ class OdooToolHandler:
             return await self._handle_get_record_tool(model, record_id, fields)
 
         @self.app.tool()
-        async def list_models() -> List[Dict[str, Any]]:
+        async def list_models() -> Dict[str, List[Dict[str, Any]]]:
             """List all models enabled for MCP access.
 
             Returns:
-                List of model information dictionaries
+                Dictionary containing a list of model information dictionaries
             """
             return await self._handle_list_models_tool()
 
@@ -293,12 +293,13 @@ class OdooToolHandler:
             logger.error(f"Error in get_record tool: {e}")
             raise ToolError(f"Failed to get record: {e}") from e
 
-    async def _handle_list_models_tool(self) -> List[Dict[str, Any]]:
+    async def _handle_list_models_tool(self) -> Dict[str, List[Dict[str, Any]]]:
         """Handle list models tool request."""
         try:
             with perf_logger.track_operation("tool_list_models"):
                 models = self.access_controller.get_enabled_models()
-                return models
+                # Return proper JSON structure with models array
+                return {"models": models}
         except Exception as e:
             logger.error(f"Error in list_models tool: {e}")
             raise ToolError(f"Failed to list models: {e}") from e
