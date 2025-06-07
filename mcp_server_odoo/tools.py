@@ -5,7 +5,7 @@ Tools are different from resources - they can have side effects and perform
 actions like creating, updating, or deleting records.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from mcp.server.fastmcp import FastMCP
 
@@ -56,7 +56,7 @@ class OdooToolHandler:
         @self.app.tool()
         async def search_records(
             model: str,
-            domain: Optional[List[List[Any]]] = None,
+            domain: Optional[List[Union[str, List[Any]]]] = None,
             fields: Optional[List[str]] = None,
             limit: int = 10,
             offset: int = 0,
@@ -157,7 +157,7 @@ class OdooToolHandler:
     async def _handle_search_tool(
         self,
         model: str,
-        domain: Optional[List[List[Any]]],
+        domain: Optional[List[Union[str, List[Any]]]],
         fields: Optional[List[str]],
         limit: int,
         offset: int,

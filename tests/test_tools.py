@@ -176,6 +176,81 @@ class TestOdooToolHandler:
         assert "Connection error" in str(exc_info.value)
 
     @pytest.mark.asyncio
+    async def test_search_records_with_domain_operators(
+        self, handler, mock_connection, mock_access_controller, mock_app
+    ):
+        """Test search_records with Odoo domain operators like |, &, !."""
+        # Setup mocks
+        mock_access_controller.validate_model_access.return_value = None
+        mock_connection.search_count.return_value = 10
+        mock_connection.search.return_value = [1, 2, 3]
+        mock_connection.read.return_value = [
+            {"id": 1, "name": "Partner 1", "state_id": [13, "California"]},
+            {"id": 2, "name": "Partner 2", "state_id": [13, "California"]},
+            {"id": 3, "name": "Partner 3", "state_id": [14, "CA"]},
+        ]
+
+        # Get the registered search_records function
+        search_records = mock_app._tools["search_records"]
+
+        # Test with OR operator
+        domain_with_or = [
+            ["country_id", "=", 233],
+            "|",
+            ["state_id.name", "ilike", "California"],
+            ["state_id.code", "=", "CA"],
+        ]
+
+        result = await search_records(
+            model="res.partner", domain=domain_with_or, fields=["name", "state_id"], limit=10
+        )
+
+        # Verify result
+        assert result["model"] == "res.partner"
+        assert result["total"] == 10
+        assert len(result["records"]) == 3
+
+        # Verify the domain was passed correctly
+        mock_connection.search_count.assert_called_with("res.partner", domain_with_or)
+        mock_connection.search.assert_called_with(
+            "res.partner", domain_with_or, limit=10, offset=0, order=None
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_records_with_complex_domain(
+        self, handler, mock_connection, mock_access_controller, mock_app
+    ):
+        """Test search_records with complex nested domain operators."""
+        # Setup mocks
+        mock_access_controller.validate_model_access.return_value = None
+        mock_connection.search_count.return_value = 5
+        mock_connection.search.return_value = [1, 2]
+        mock_connection.read.return_value = [
+            {"id": 1, "name": "Company A", "is_company": True},
+            {"id": 2, "name": "Company B", "is_company": True},
+        ]
+
+        # Get the registered search_records function
+        search_records = mock_app._tools["search_records"]
+
+        # Complex domain with nested operators
+        complex_domain = [
+            "&",
+            ["is_company", "=", True],
+            "|",
+            ["name", "ilike", "Company"],
+            ["email", "!=", False],
+        ]
+
+        await search_records(model="res.partner", domain=complex_domain, limit=5)
+
+        # Verify the domain was passed correctly
+        mock_connection.search_count.assert_called_with("res.partner", complex_domain)
+        mock_connection.search.assert_called_with(
+            "res.partner", complex_domain, limit=5, offset=0, order=None
+        )
+
+    @pytest.mark.asyncio
     async def test_get_record_success(
         self, handler, mock_connection, mock_access_controller, mock_app
     ):

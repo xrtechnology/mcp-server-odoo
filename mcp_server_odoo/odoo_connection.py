@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 import xmlrpc.client
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 from .config import OdooConfig
@@ -703,7 +703,7 @@ class OdooConnection:
             logger.error(f"Error during {method} on {model}: {e}")
             raise OdooConnectionError(f"Failed to execute {method} on {model}: {e}") from e
 
-    def search(self, model: str, domain: List[List[Any]], **kwargs) -> List[int]:
+    def search(self, model: str, domain: List[Union[str, List[Any]]], **kwargs) -> List[int]:
         """Search for records matching a domain.
 
         Args:
@@ -766,7 +766,11 @@ class OdooConnection:
         return all_records
 
     def search_read(
-        self, model: str, domain: List[List[Any]], fields: Optional[List[str]] = None, **kwargs
+        self,
+        model: str,
+        domain: List[Union[str, List[Any]]],
+        fields: Optional[List[str]] = None,
+        **kwargs,
     ) -> List[Dict[str, Any]]:
         """Search for records and read their data in one operation.
 
@@ -815,7 +819,7 @@ class OdooConnection:
 
         return fields
 
-    def search_count(self, model: str, domain: List[List[Any]]) -> int:
+    def search_count(self, model: str, domain: List[Union[str, List[Any]]]) -> int:
         """Count records matching a domain.
 
         Args:
