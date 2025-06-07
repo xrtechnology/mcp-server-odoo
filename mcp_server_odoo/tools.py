@@ -16,6 +16,7 @@ from .error_handling import (
     NotFoundError,
     ValidationError,
 )
+from .error_sanitizer import ErrorSanitizer
 from .logging_config import get_logger, perf_logger
 from .odoo_connection import OdooConnection, OdooConnectionError
 
@@ -389,7 +390,8 @@ class OdooToolHandler:
             raise ToolError(f"Connection error: {e}") from e
         except Exception as e:
             logger.error(f"Error in search_records tool: {e}")
-            raise ToolError(f"Search failed: {e}") from e
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ToolError(f"Search failed: {sanitized_msg}") from e
 
     async def _handle_get_record_tool(
         self,
@@ -459,6 +461,9 @@ class OdooToolHandler:
 
                 return record
 
+        except ToolError:
+            # Re-raise ToolError without modification to preserve specific error messages
+            raise
         except NotFoundError as e:
             raise ToolError(str(e)) from e
         except AccessControlError as e:
@@ -467,7 +472,8 @@ class OdooToolHandler:
             raise ToolError(f"Connection error: {e}") from e
         except Exception as e:
             logger.error(f"Error in get_record tool: {e}")
-            raise ToolError(f"Failed to get record: {e}") from e
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ToolError(f"Failed to get record: {sanitized_msg}") from e
 
     async def _handle_list_models_tool(self) -> Dict[str, List[Dict[str, Any]]]:
         """Handle list models tool request."""
@@ -476,9 +482,13 @@ class OdooToolHandler:
                 models = self.access_controller.get_enabled_models()
                 # Return proper JSON structure with models array
                 return {"models": models}
+        except ToolError:
+            # Re-raise ToolError without modification to preserve specific error messages
+            raise
         except Exception as e:
             logger.error(f"Error in list_models tool: {e}")
-            raise ToolError(f"Failed to list models: {e}") from e
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ToolError(f"Failed to list models: {sanitized_msg}") from e
 
     async def _handle_create_record_tool(
         self,
@@ -513,13 +523,17 @@ class OdooToolHandler:
                     "message": f"Successfully created {model} record with ID {record_id}",
                 }
 
+        except ToolError:
+            # Re-raise ToolError without modification to preserve specific error messages
+            raise
         except AccessControlError as e:
             raise ToolError(f"Access denied: {e}") from e
         except OdooConnectionError as e:
             raise ToolError(f"Connection error: {e}") from e
         except Exception as e:
             logger.error(f"Error in create_record tool: {e}")
-            raise ToolError(f"Failed to create record: {e}") from e
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ToolError(f"Failed to create record: {sanitized_msg}") from e
 
     async def _handle_update_record_tool(
         self,
@@ -560,6 +574,9 @@ class OdooToolHandler:
                     "message": f"Successfully updated {model} record with ID {record_id}",
                 }
 
+        except ToolError:
+            # Re-raise ToolError without modification to preserve specific error messages
+            raise
         except NotFoundError as e:
             raise ToolError(str(e)) from e
         except AccessControlError as e:
@@ -568,7 +585,8 @@ class OdooToolHandler:
             raise ToolError(f"Connection error: {e}") from e
         except Exception as e:
             logger.error(f"Error in update_record tool: {e}")
-            raise ToolError(f"Failed to update record: {e}") from e
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ToolError(f"Failed to update record: {sanitized_msg}") from e
 
     async def _handle_delete_record_tool(
         self,
@@ -605,6 +623,9 @@ class OdooToolHandler:
                     "message": f"Successfully deleted {model} record '{record_name}' (ID: {record_id})",
                 }
 
+        except ToolError:
+            # Re-raise ToolError without modification to preserve specific error messages
+            raise
         except NotFoundError as e:
             raise ToolError(str(e)) from e
         except AccessControlError as e:
@@ -613,7 +634,8 @@ class OdooToolHandler:
             raise ToolError(f"Connection error: {e}") from e
         except Exception as e:
             logger.error(f"Error in delete_record tool: {e}")
-            raise ToolError(f"Failed to delete record: {e}") from e
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ToolError(f"Failed to delete record: {sanitized_msg}") from e
 
 
 def register_tools(

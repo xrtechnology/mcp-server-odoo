@@ -18,6 +18,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from mcp.types import ErrorData
 
+from .error_sanitizer import ErrorSanitizer
+
 logger = logging.getLogger(__name__)
 
 
@@ -120,13 +122,17 @@ class MCPError(Exception):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert error to dictionary for logging/API responses."""
+        # Sanitize message and details for external consumption
+        sanitized_message = ErrorSanitizer.sanitize_message(self.message)
+        sanitized_details = ErrorSanitizer.sanitize_error_details(self.details)
+
         return {
             "error": {
                 "code": self.code,
-                "message": self.message,
+                "message": sanitized_message,
                 "category": self.category.name,
                 "severity": self.severity.value,
-                "details": self.details,
+                "details": sanitized_details,
                 "context": {
                     "model": self.context.model,
                     "operation": self.context.operation,
@@ -139,10 +145,14 @@ class MCPError(Exception):
 
     def to_mcp_error(self) -> ErrorData:
         """Convert to MCP-compliant error format."""
+        # Sanitize message and details for external consumption
+        sanitized_message = ErrorSanitizer.sanitize_message(self.message)
+        sanitized_details = ErrorSanitizer.sanitize_error_details(self.details)
+
         return ErrorData(
             code=-32000,  # Application error
-            message=self.message,
-            data={"code": self.code, "details": self.details},
+            message=sanitized_message,
+            data={"code": self.code, "details": sanitized_details},
         )
 
 
@@ -303,39 +313,40 @@ class ErrorHandler:
         error_message = str(error)
         error_type = type(error).__name__
 
-        # Map common exceptions
+        # Log the full traceback internally
+        logger.debug(f"Full error details: {error_type}: {error_message}\n{traceback.format_exc()}")
+
+        # Map common exceptions with sanitized messages
         if isinstance(error, (ConnectionRefusedError, TimeoutError)):
             return ConnectionError(
                 f"Connection failed: {error_message}",
-                details={"error_type": error_type},
+                details={"category": "connection_error"},
                 context=context,
             )
         elif isinstance(error, (ValueError, TypeError)):
             return ValidationError(
                 f"Invalid input: {error_message}",
-                details={"error_type": error_type},
+                details={"category": "validation_error"},
                 context=context,
             )
         elif isinstance(error, KeyError):
             return NotFoundError(
                 f"Resource not found: {error_message}",
-                details={"error_type": error_type, "key": str(error)},
+                details={"category": "not_found"},
                 context=context,
             )
         elif isinstance(error, PermissionError):
             return PermissionError(
                 f"Access denied: {error_message}",
-                details={"error_type": error_type},
+                details={"category": "permission_denied"},
                 context=context,
             )
         else:
             # Default to system error for unknown exceptions
+            # Don't include traceback in user-facing error
             return SystemError(
                 f"Unexpected error: {error_message}",
-                details={
-                    "error_type": error_type,
-                    "traceback": traceback.format_exc(),
-                },
+                details={"category": "internal_error"},
                 context=context,
             )
 

@@ -129,8 +129,11 @@ class TestXMLRPCOperations:
         mock_proxy.execute_kw.side_effect = Fault(1, "Access Denied")
         authenticated_connection._object_proxy = mock_proxy
 
-        # Should raise error
-        with pytest.raises(OdooConnectionError, match="Access Denied"):
+        # Should raise error with sanitized message
+        with pytest.raises(
+            OdooConnectionError,
+            match="Access denied: Invalid credentials or insufficient permissions",
+        ):
             authenticated_connection.execute_kw("res.partner", "unlink", [[1]], {})
 
     def test_execute_kw_timeout(self, authenticated_connection):

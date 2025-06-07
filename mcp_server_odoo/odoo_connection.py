@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 from .config import OdooConfig
+from .error_sanitizer import ErrorSanitizer
 from .performance import PerformanceManager
 
 logger = logging.getLogger(__name__)
@@ -693,15 +694,17 @@ class OdooConnection:
 
         except xmlrpc.client.Fault as e:
             logger.error(f"XML-RPC fault during {method} on {model}: {e}")
-            raise OdooConnectionError(
-                f"Failed to execute {method} on {model}: {e.faultString}"
-            ) from e
+            # Sanitize the fault string before exposing to user
+            sanitized_message = ErrorSanitizer.sanitize_xmlrpc_fault(e.faultString)
+            raise OdooConnectionError(f"Operation failed: {sanitized_message}") from e
         except socket.timeout:
             logger.error(f"Timeout during {method} on {model}")
             raise OdooConnectionError(f"Operation timeout after {self.timeout} seconds") from None
         except Exception as e:
             logger.error(f"Error during {method} on {model}: {e}")
-            raise OdooConnectionError(f"Failed to execute {method} on {model}: {e}") from e
+            # Sanitize generic errors as well
+            sanitized_message = ErrorSanitizer.sanitize_message(str(e))
+            raise OdooConnectionError(f"Operation failed: {sanitized_message}") from e
 
     def search(self, model: str, domain: List[Union[str, List[Any]]], **kwargs) -> List[int]:
         """Search for records matching a domain.
