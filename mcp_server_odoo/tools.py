@@ -279,10 +279,30 @@ class OdooToolHandler:
 
         @self.app.tool()
         async def list_models() -> Dict[str, List[Dict[str, Any]]]:
-            """List all models enabled for MCP access.
+            """List all models enabled for MCP access with their allowed operations.
 
             Returns:
-                Dictionary containing a list of model information dictionaries
+                Dictionary containing a list of model information dictionaries.
+                Each model includes:
+                - model: Technical name (e.g., 'res.partner')
+                - name: Display name (e.g., 'Contact')
+                - operations: Dict of allowed operations (read, write, create, unlink)
+
+            Example response:
+                {
+                    "models": [
+                        {
+                            "model": "res.partner",
+                            "name": "Contact",
+                            "operations": {
+                                "read": true,
+                                "write": true,
+                                "create": true,
+                                "unlink": false
+                            }
+                        }
+                    ]
+                }
             """
             return await self._handle_list_models_tool()
 
@@ -476,12 +496,47 @@ class OdooToolHandler:
             raise ToolError(f"Failed to get record: {sanitized_msg}") from e
 
     async def _handle_list_models_tool(self) -> Dict[str, List[Dict[str, Any]]]:
-        """Handle list models tool request."""
+        """Handle list models tool request with permissions."""
         try:
             with perf_logger.track_operation("tool_list_models"):
+                # Get basic model list
                 models = self.access_controller.get_enabled_models()
-                # Return proper JSON structure with models array
-                return {"models": models}
+
+                # Enrich with permissions for each model
+                enriched_models = []
+                for model_info in models:
+                    model_name = model_info["model"]
+                    try:
+                        # Get permissions for this model
+                        permissions = self.access_controller.get_model_permissions(model_name)
+                        enriched_model = {
+                            "model": model_name,
+                            "name": model_info["name"],
+                            "operations": {
+                                "read": permissions.can_read,
+                                "write": permissions.can_write,
+                                "create": permissions.can_create,
+                                "unlink": permissions.can_unlink,
+                            },
+                        }
+                        enriched_models.append(enriched_model)
+                    except Exception as e:
+                        # If we can't get permissions for a model, include it with all operations false
+                        logger.warning(f"Failed to get permissions for {model_name}: {e}")
+                        enriched_model = {
+                            "model": model_name,
+                            "name": model_info["name"],
+                            "operations": {
+                                "read": False,
+                                "write": False,
+                                "create": False,
+                                "unlink": False,
+                            },
+                        }
+                        enriched_models.append(enriched_model)
+
+                # Return proper JSON structure with enriched models array
+                return {"models": enriched_models}
         except ToolError:
             # Re-raise ToolError without modification to preserve specific error messages
             raise

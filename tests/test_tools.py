@@ -350,12 +350,44 @@ class TestOdooToolHandler:
     async def test_list_models_success(
         self, handler, mock_connection, mock_access_controller, mock_app
     ):
-        """Test successful list_models operation."""
-        # Setup mocks
+        """Test successful list_models operation with permissions."""
+        # Setup mocks for get_enabled_models
         mock_access_controller.get_enabled_models.return_value = [
-            {"model": "res.partner", "name": "Contact", "operations": ["read", "write"]},
-            {"model": "sale.order", "name": "Sales Order", "operations": ["read"]},
+            {"model": "res.partner", "name": "Contact"},
+            {"model": "sale.order", "name": "Sales Order"},
         ]
+
+        # Setup mocks for get_model_permissions
+        from mcp_server_odoo.access_control import ModelPermissions
+
+        partner_perms = ModelPermissions(
+            model="res.partner",
+            enabled=True,
+            can_read=True,
+            can_write=True,
+            can_create=True,
+            can_unlink=False,
+        )
+
+        order_perms = ModelPermissions(
+            model="sale.order",
+            enabled=True,
+            can_read=True,
+            can_write=False,
+            can_create=False,
+            can_unlink=False,
+        )
+
+        # Configure side_effect to return different permissions based on model
+        def get_perms(model):
+            if model == "res.partner":
+                return partner_perms
+            elif model == "sale.order":
+                return order_perms
+            else:
+                raise Exception(f"Unknown model: {model}")
+
+        mock_access_controller.get_model_permissions.side_effect = get_perms
 
         # Get the registered list_models function
         list_models = mock_app._tools["list_models"]
@@ -363,14 +395,91 @@ class TestOdooToolHandler:
         # Call the tool
         result = await list_models()
 
-        # Verify result
+        # Verify result structure
         assert "models" in result
         assert len(result["models"]) == 2
-        assert result["models"][0]["model"] == "res.partner"
-        assert result["models"][1]["model"] == "sale.order"
+
+        # Verify first model (res.partner)
+        partner = result["models"][0]
+        assert partner["model"] == "res.partner"
+        assert partner["name"] == "Contact"
+        assert "operations" in partner
+        assert partner["operations"]["read"] is True
+        assert partner["operations"]["write"] is True
+        assert partner["operations"]["create"] is True
+        assert partner["operations"]["unlink"] is False
+
+        # Verify second model (sale.order)
+        order = result["models"][1]
+        assert order["model"] == "sale.order"
+        assert order["name"] == "Sales Order"
+        assert "operations" in order
+        assert order["operations"]["read"] is True
+        assert order["operations"]["write"] is False
+        assert order["operations"]["create"] is False
+        assert order["operations"]["unlink"] is False
 
         # Verify calls
         mock_access_controller.get_enabled_models.assert_called_once()
+        assert mock_access_controller.get_model_permissions.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_list_models_with_permission_failures(
+        self, handler, mock_connection, mock_access_controller, mock_app
+    ):
+        """Test list_models when some models fail to get permissions."""
+        # Setup mocks for get_enabled_models
+        mock_access_controller.get_enabled_models.return_value = [
+            {"model": "res.partner", "name": "Contact"},
+            {"model": "unknown.model", "name": "Unknown Model"},
+        ]
+
+        # Setup mocks for get_model_permissions
+        from mcp_server_odoo.access_control import AccessControlError, ModelPermissions
+
+        partner_perms = ModelPermissions(
+            model="res.partner",
+            enabled=True,
+            can_read=True,
+            can_write=True,
+            can_create=False,
+            can_unlink=False,
+        )
+
+        # Configure side_effect to fail for unknown model
+        def get_perms(model):
+            if model == "res.partner":
+                return partner_perms
+            else:
+                raise AccessControlError(f"Model {model} not found")
+
+        mock_access_controller.get_model_permissions.side_effect = get_perms
+
+        # Get the registered list_models function
+        list_models = mock_app._tools["list_models"]
+
+        # Call the tool - should not fail even if some models can't get permissions
+        result = await list_models()
+
+        # Verify result structure
+        assert "models" in result
+        assert len(result["models"]) == 2
+
+        # Verify first model (res.partner) - should have correct permissions
+        partner = result["models"][0]
+        assert partner["model"] == "res.partner"
+        assert partner["operations"]["read"] is True
+        assert partner["operations"]["write"] is True
+        assert partner["operations"]["create"] is False
+        assert partner["operations"]["unlink"] is False
+
+        # Verify second model (unknown.model) - should have all operations as False
+        unknown = result["models"][1]
+        assert unknown["model"] == "unknown.model"
+        assert unknown["operations"]["read"] is False
+        assert unknown["operations"]["write"] is False
+        assert unknown["operations"]["create"] is False
+        assert unknown["operations"]["unlink"] is False
 
     @pytest.mark.asyncio
     async def test_list_models_error(
