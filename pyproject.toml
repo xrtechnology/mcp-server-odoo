@@ -11,7 +11,11 @@ requires-python = ">=3.10"
 authors = [
     { name = "Andrey Ivanov", email = "ivnv.xd@gmail.com" }
 ]
+maintainers = [
+    { name = "Andrey Ivanov", email = "ivnv.xd@gmail.com" }
+]
 license = { text = "MPL-2.0" }
+keywords = ["mcp", "odoo", "erp", "model-context-protocol", "ai", "llm", "claude", "anthropic"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -20,6 +24,10 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Office/Business :: Financial :: Enterprise Resource Planning (ERP)",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
     "mcp>=1.9.2",
@@ -28,6 +36,13 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ivnvxd/mcp-server-odoo"
+Documentation = "https://github.com/ivnvxd/mcp-server-odoo#readme"
+Repository = "https://github.com/ivnvxd/mcp-server-odoo"
+Issues = "https://github.com/ivnvxd/mcp-server-odoo/issues"
+Changelog = "https://github.com/ivnvxd/mcp-server-odoo/releases"
 
 [project.optional-dependencies]
 dev = [
