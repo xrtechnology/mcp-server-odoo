@@ -77,24 +77,71 @@ class OdooToolHandler:
 
     def _process_record_dates(self, record: Dict[str, Any], model: str) -> Dict[str, Any]:
         """Process datetime fields in a record to ensure proper formatting."""
-        # Get field metadata if available
+        # Common datetime field names in Odoo
+        known_datetime_fields = {
+            "create_date",
+            "write_date",
+            "date",
+            "datetime",
+            "date_start",
+            "date_end",
+            "date_from",
+            "date_to",
+            "date_order",
+            "date_invoice",
+            "date_due",
+            "last_update",
+            "last_activity",
+            "activity_date_deadline",
+        }
+
+        # First try to get field metadata
+        fields_info = None
         try:
             fields_info = self.connection.fields_get(model)
-            for field_name, field_value in record.items():
-                if field_name in fields_info:
-                    field_type = fields_info[field_name].get("type")
-                    if field_type == "datetime" and isinstance(field_value, str):
-                        record[field_name] = self._format_datetime(field_value)
         except Exception:
-            # If we can't get field info, try to detect datetime fields by pattern
-            for field_name, field_value in record.items():
-                if isinstance(field_value, str) and (
-                    (len(field_value) == 17 and "T" in field_value and "-" not in field_value)
-                    or (len(field_value) == 19 and " " in field_value)
-                ):
-                    formatted = self._format_datetime(field_value)
-                    if formatted != field_value:
-                        record[field_name] = formatted
+            # Field metadata unavailable, will use fallback detection
+            pass
+
+        # Process each field in the record
+        for field_name, field_value in record.items():
+            if not isinstance(field_value, str):
+                continue
+
+            should_format = False
+
+            # Check if field is identified as datetime from metadata
+            if fields_info and isinstance(fields_info, dict) and field_name in fields_info:
+                field_type = fields_info[field_name].get("type")
+                if field_type == "datetime":
+                    should_format = True
+
+            # Check if field name suggests it's a datetime field
+            if not should_format and field_name in known_datetime_fields:
+                should_format = True
+
+            # Check if field name ends with common datetime suffixes
+            if not should_format and any(
+                field_name.endswith(suffix) for suffix in ["_date", "_datetime", "_time"]
+            ):
+                should_format = True
+
+            # Pattern-based detection for datetime-like strings
+            if not should_format and (
+                (
+                    len(field_value) == 17 and "T" in field_value and "-" not in field_value
+                )  # 20250607T21:55:52
+                or (
+                    len(field_value) == 19 and " " in field_value and field_value.count("-") == 2
+                )  # 2025-06-07 21:55:52
+            ):
+                should_format = True
+
+            # Apply formatting if needed
+            if should_format:
+                formatted = self._format_datetime(field_value)
+                if formatted != field_value:
+                    record[field_name] = formatted
 
         return record
 
