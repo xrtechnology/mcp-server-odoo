@@ -68,6 +68,12 @@ jobs:
     - name: Run unit tests with coverage
       run: |
         pytest -m "not integration" --cov=mcp_server_odoo --cov-report=xml --cov-report=term
+      env:
+        ODOO_URL: ${{ vars.ODOO_URL || 'http://localhost:8069' }}
+        ODOO_DB: ${{ vars.ODOO_DB || 'test' }}
+        ODOO_API_KEY: ${{ vars.ODOO_API_KEY || 'test_api_key' }}
+        ODOO_USER: ${{ vars.ODOO_USER || 'admin' }}
+        ODOO_PASSWORD: ${{ vars.ODOO_PASSWORD || 'admin' }}
     
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.10'  # Only upload once
@@ -106,9 +112,11 @@ jobs:
       run: |
         pytest -m "integration" -v
       env:
-        ODOO_URL: http://localhost:8069
-        ODOO_DB: test
-        ODOO_API_KEY: test_api_key
+        ODOO_URL: ${{ vars.ODOO_URL || 'http://localhost:8069' }}
+        ODOO_DB: ${{ vars.ODOO_DB || 'test' }}
+        ODOO_API_KEY: ${{ vars.ODOO_API_KEY || 'test_api_key' }}
+        ODOO_USER: ${{ vars.ODOO_USER || 'admin' }}
+        ODOO_PASSWORD: ${{ vars.ODOO_PASSWORD || 'admin' }}
 
   build:
     name: Build Package

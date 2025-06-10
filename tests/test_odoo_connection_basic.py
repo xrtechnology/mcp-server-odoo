@@ -50,9 +50,17 @@ class TestOdooConnectionInit:
         assert conn.config == test_config
         assert conn.timeout == OdooConnection.DEFAULT_TIMEOUT
         assert not conn.is_connected
-        assert conn._url_components["host"] == "localhost"
-        assert conn._url_components["port"] == 8069
-        assert conn._url_components["scheme"] == "http"
+
+        # Parse expected values from config URL
+        from urllib.parse import urlparse
+
+        parsed = urlparse(test_config.url)
+        expected_host = parsed.hostname or "localhost"
+        expected_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+        assert conn._url_components["host"] == expected_host
+        assert conn._url_components["port"] == expected_port
+        assert conn._url_components["scheme"] == parsed.scheme
 
     def test_init_custom_timeout(self, test_config):
         """Test initialization with custom timeout."""
@@ -93,13 +101,24 @@ class TestOdooConnectionInit:
         conn = OdooConnection(test_config)
 
         db_url = conn._build_endpoint_url(OdooConnection.MCP_DB_ENDPOINT)
-        assert db_url == "http://localhost:8069/mcp/xmlrpc/db"
+        # Build expected URL from config
+        from urllib.parse import urlparse
+
+        parsed = urlparse(test_config.url)
+        expected_url = f"{parsed.scheme}://{parsed.netloc}{OdooConnection.MCP_DB_ENDPOINT}"
+        assert db_url == expected_url
 
         common_url = conn._build_endpoint_url(OdooConnection.MCP_COMMON_ENDPOINT)
-        assert common_url == "http://localhost:8069/mcp/xmlrpc/common"
+        expected_common_url = (
+            f"{parsed.scheme}://{parsed.netloc}{OdooConnection.MCP_COMMON_ENDPOINT}"
+        )
+        assert common_url == expected_common_url
 
         object_url = conn._build_endpoint_url(OdooConnection.MCP_OBJECT_ENDPOINT)
-        assert object_url == "http://localhost:8069/mcp/xmlrpc/object"
+        expected_object_url = (
+            f"{parsed.scheme}://{parsed.netloc}{OdooConnection.MCP_OBJECT_ENDPOINT}"
+        )
+        assert object_url == expected_object_url
 
 
 class TestOdooConnectionConnect:

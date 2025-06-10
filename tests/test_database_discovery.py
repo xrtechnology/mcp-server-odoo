@@ -100,21 +100,27 @@ class TestDatabaseDiscovery:
 
         assert connection.database_exists("nonexistent") is False
 
-    def test_auto_select_configured_database(self, config_with_db):
+    def test_auto_select_configured_database(self):
         """Test auto-selection uses configured database when set."""
-        connection = OdooConnection(config_with_db)
+        # Create config with explicit database
+        config = OdooConfig(url="http://localhost:8069", api_key="test_api_key", database="mydb")
+        connection = OdooConnection(config)
         connection._connected = True
         mock_proxy = Mock()
-        mock_proxy.list.return_value = ["db1", os.getenv("ODOO_DB", "db"), "test"]
+        mock_proxy.list.return_value = ["db1", "mydb", "test"]
         connection._db_proxy = mock_proxy
 
         selected = connection.auto_select_database()
 
-        assert selected == os.getenv("ODOO_DB", "db")
+        assert selected == "mydb"
 
-    def test_auto_select_configured_database_not_exists(self, config_with_db):
+    def test_auto_select_configured_database_not_exists(self):
         """Test auto-selection fails when configured database doesn't exist."""
-        connection = OdooConnection(config_with_db)
+        # Create config with explicit database that doesn't exist
+        config = OdooConfig(
+            url="http://localhost:8069", api_key="test_api_key", database="nonexistent"
+        )
+        connection = OdooConnection(config)
         connection._connected = True
         mock_proxy = Mock()
         mock_proxy.list.return_value = ["db1", "test"]
