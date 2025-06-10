@@ -5,6 +5,7 @@ the Odoo MCP module's REST API endpoints.
 """
 
 import json
+import os
 import socket
 import urllib.error
 from unittest.mock import MagicMock, patch
@@ -37,7 +38,11 @@ class TestAccessControl:
     @pytest.fixture
     def config(self):
         """Create test configuration."""
-        return OdooConfig(url="http://localhost:8069", api_key="test_api_key", database="mcp")
+        return OdooConfig(
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            api_key="test_api_key",
+            database=os.getenv("ODOO_DB"),
+        )
 
     @pytest.fixture
     def controller(self, config):
@@ -47,7 +52,10 @@ class TestAccessControl:
     def test_init_without_api_key(self):
         """Test initialization fails without API key."""
         config = OdooConfig(
-            url="http://localhost:8069", username="admin", password="admin", database="mcp"
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            username=os.getenv("ODOO_USER", "admin"),
+            password=os.getenv("ODOO_PASSWORD", "admin"),
+            database=os.getenv("ODOO_DB"),
         )
 
         with pytest.raises(AccessControlError, match="API key required"):
@@ -370,9 +378,9 @@ class TestAccessControlIntegration:
     def real_config(self):
         """Create configuration with real credentials."""
         return OdooConfig(
-            url="http://localhost:8069",
-            api_key="0ef5b399e9ee9c11b053dfb6eeba8de473c29fcd",
-            database="mcp",
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            api_key=os.getenv("ODOO_API_KEY"),
+            database=os.getenv("ODOO_DB"),
         )
 
     def test_real_get_enabled_models(self, real_config):
@@ -412,8 +420,8 @@ class TestAccessControlIntegration:
         print(f"res.partner read: allowed={allowed}, msg={msg}")
 
         # Check non-enabled model
-        allowed, msg = controller.check_operation_allowed("account.move", "read")
-        print(f"account.move read: allowed={allowed}, msg={msg}")
+        allowed, msg = controller.check_operation_allowed("ir.model", "read")
+        print(f"ir.model read: allowed={allowed}, msg={msg}")
 
     def test_real_validate_access(self, real_config):
         """Test access validation on real server."""
@@ -428,7 +436,7 @@ class TestAccessControlIntegration:
 
         # Should raise for non-enabled model
         with pytest.raises(AccessControlError):
-            controller.validate_model_access("account.move", "read")
+            controller.validate_model_access("ir.model", "read")
 
     def test_real_cache_performance(self, real_config):
         """Test cache improves performance."""

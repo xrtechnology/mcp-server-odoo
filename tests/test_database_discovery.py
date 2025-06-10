@@ -4,6 +4,7 @@ This module tests database listing, auto-selection logic, and
 database validation features.
 """
 
+import os
 import socket
 from unittest.mock import Mock
 from xmlrpc.client import Fault
@@ -34,7 +35,7 @@ class TestDatabaseDiscovery:
     def config(self):
         """Create test configuration."""
         return OdooConfig(
-            url="http://localhost:8069",
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
             api_key="test_api_key",
             database=None,  # No database specified for auto-selection tests
         )
@@ -42,7 +43,11 @@ class TestDatabaseDiscovery:
     @pytest.fixture
     def config_with_db(self):
         """Create test configuration with database specified."""
-        return OdooConfig(url="http://localhost:8069", api_key="test_api_key", database="mcp")
+        return OdooConfig(
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            api_key="test_api_key",
+            database=os.getenv("ODOO_DB"),
+        )
 
     @pytest.fixture
     def connection(self, config):
@@ -58,12 +63,12 @@ class TestDatabaseDiscovery:
         """Test successful database listing."""
         connection._connected = True
         mock_proxy = Mock()
-        mock_proxy.list.return_value = ["db1", "db2", "mcp"]
+        mock_proxy.list.return_value = ["db1", "db2", os.getenv("ODOO_DB", "db")]
         connection._db_proxy = mock_proxy
 
         databases = connection.list_databases()
 
-        assert databases == ["db1", "db2", "mcp"]
+        assert databases == ["db1", "db2", os.getenv("ODOO_DB", "db")]
         mock_proxy.list.assert_called_once()
 
     def test_list_databases_error(self, connection):
@@ -80,17 +85,17 @@ class TestDatabaseDiscovery:
         """Test database_exists returns True for existing database."""
         connection._connected = True
         mock_proxy = Mock()
-        mock_proxy.list.return_value = ["db1", "mcp", "test"]
+        mock_proxy.list.return_value = ["db1", os.getenv("ODOO_DB", "db"), "test"]
         connection._db_proxy = mock_proxy
 
-        assert connection.database_exists("mcp") is True
+        assert connection.database_exists(os.getenv("ODOO_DB", "db")) is True
         assert connection.database_exists("test") is True
 
     def test_database_exists_false(self, connection):
         """Test database_exists returns False for non-existing database."""
         connection._connected = True
         mock_proxy = Mock()
-        mock_proxy.list.return_value = ["db1", "mcp"]
+        mock_proxy.list.return_value = ["db1", os.getenv("ODOO_DB", "db")]
         connection._db_proxy = mock_proxy
 
         assert connection.database_exists("nonexistent") is False
@@ -100,12 +105,12 @@ class TestDatabaseDiscovery:
         connection = OdooConnection(config_with_db)
         connection._connected = True
         mock_proxy = Mock()
-        mock_proxy.list.return_value = ["db1", "mcp", "test"]
+        mock_proxy.list.return_value = ["db1", os.getenv("ODOO_DB", "db"), "test"]
         connection._db_proxy = mock_proxy
 
         selected = connection.auto_select_database()
 
-        assert selected == "mcp"
+        assert selected == os.getenv("ODOO_DB", "db")
 
     def test_auto_select_configured_database_not_exists(self, config_with_db):
         """Test auto-selection fails when configured database doesn't exist."""
@@ -164,16 +169,20 @@ class TestDatabaseDiscovery:
         """Test database validation with API key authentication."""
         connection._connected = True
         mock_proxy = Mock()
-        mock_proxy.list.return_value = ["mcp", "test"]
+        mock_proxy.list.return_value = [os.getenv("ODOO_DB", "db"), "test"]
         connection._db_proxy = mock_proxy
 
         # Should just check existence for API key auth
-        assert connection.validate_database_access("mcp") is True
+        assert connection.validate_database_access(os.getenv("ODOO_DB", "db")) is True
         assert connection.validate_database_access("nonexistent") is False
 
     def test_validate_database_access_credentials(self):
         """Test database validation with username/password authentication."""
-        config = OdooConfig(url="http://localhost:8069", username="admin", password="admin")
+        config = OdooConfig(
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            username=os.getenv("ODOO_USER", "admin"),
+            password=os.getenv("ODOO_PASSWORD", "admin"),
+        )
         connection = OdooConnection(config)
         connection._connected = True
 
@@ -181,12 +190,21 @@ class TestDatabaseDiscovery:
         mock_common.authenticate.return_value = 2  # User ID
         connection._common_proxy = mock_common
 
-        assert connection.validate_database_access("mcp") is True
-        mock_common.authenticate.assert_called_once_with("mcp", "admin", "admin", {})
+        assert connection.validate_database_access(os.getenv("ODOO_DB", "db")) is True
+        mock_common.authenticate.assert_called_once_with(
+            os.getenv("ODOO_DB", "db"),
+            os.getenv("ODOO_USER", "admin"),
+            os.getenv("ODOO_PASSWORD", "admin"),
+            {},
+        )
 
     def test_validate_database_access_auth_failed(self):
         """Test database validation with failed authentication."""
-        config = OdooConfig(url="http://localhost:8069", username="admin", password="wrong")
+        config = OdooConfig(
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            username=os.getenv("ODOO_USER", "admin"),
+            password="wrong",
+        )
         connection = OdooConnection(config)
         connection._connected = True
 
@@ -194,11 +212,15 @@ class TestDatabaseDiscovery:
         mock_common.authenticate.return_value = False
         connection._common_proxy = mock_common
 
-        assert connection.validate_database_access("mcp") is False
+        assert connection.validate_database_access(os.getenv("ODOO_DB", "db")) is False
 
     def test_validate_database_access_fault(self):
         """Test database validation with XML-RPC fault."""
-        config = OdooConfig(url="http://localhost:8069", username="admin", password="admin")
+        config = OdooConfig(
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            username=os.getenv("ODOO_USER", "admin"),
+            password=os.getenv("ODOO_PASSWORD", "admin"),
+        )
         connection = OdooConnection(config)
         connection._connected = True
 
@@ -206,7 +228,7 @@ class TestDatabaseDiscovery:
         mock_common.authenticate.side_effect = Fault(1, "Access Denied")
         connection._common_proxy = mock_common
 
-        assert connection.validate_database_access("mcp") is False
+        assert connection.validate_database_access(os.getenv("ODOO_DB", "db")) is False
 
 
 @pytest.mark.skipif(
@@ -221,8 +243,8 @@ class TestDatabaseDiscoveryIntegration:
         # Use hardcoded values for local test server
         # Don't load from environment to avoid conflicts
         return OdooConfig(
-            url="http://localhost:8069",
-            api_key="0ef5b399e9ee9c11b053dfb6eeba8de473c29fcd",
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            api_key=os.getenv("ODOO_API_KEY"),
             database=None,  # Let it auto-select
         )
 

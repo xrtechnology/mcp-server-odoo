@@ -261,10 +261,6 @@ if __name__ == "__main__":
             print("Copy .env.example to .env and update with your values")
             return
 
-        # Optional variables can have defaults
-        if not os.getenv("ODOO_DB"):
-            os.environ["ODOO_DB"] = "mcp"  # Will be auto-detected if not set
-
         # Connect to server
         client = MCPTestClient()
         async with client.connect() as connected_client:

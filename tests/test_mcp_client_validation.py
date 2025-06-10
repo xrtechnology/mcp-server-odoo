@@ -39,9 +39,9 @@ except ImportError:
 
 # Test configuration
 TEST_CONFIG = {
-    "ODOO_URL": "http://localhost:8069",
-    "ODOO_DB": "mcp",
-    "ODOO_API_KEY": "0ef5b399e9ee9c11b053dfb6eeba8de473c29fcd",
+    "ODOO_URL": os.getenv("ODOO_URL", "http://localhost:8069"),
+    "ODOO_DB": os.getenv("ODOO_DB"),
+    "ODOO_API_KEY": os.getenv("ODOO_API_KEY"),
 }
 
 
@@ -49,7 +49,8 @@ TEST_CONFIG = {
 def test_env(monkeypatch):
     """Set test environment variables."""
     for key, value in TEST_CONFIG.items():
-        monkeypatch.setenv(key, value)
+        if value is not None:  # Only set non-None values
+            monkeypatch.setenv(key, value)
     yield
 
 
@@ -389,7 +390,9 @@ class TestRealOdooServer:
         try:
             import urllib.request
 
-            with urllib.request.urlopen("http://localhost:8069/mcp/health", timeout=2) as response:
+            with urllib.request.urlopen(
+                f"{os.getenv('ODOO_URL', 'http://localhost:8069')}/mcp/health", timeout=2
+            ) as response:
                 if response.status != 200:
                     pytest.skip("Odoo server not available")
         except Exception:

@@ -1,5 +1,6 @@
 """Tests for caching functionality with Odoo integration."""
 
+import os
 import time
 from unittest.mock import Mock, patch
 
@@ -20,7 +21,7 @@ class TestOdooConnectionCaching:
     def mock_config(self):
         """Create mock config."""
         config = Mock(spec=OdooConfig)
-        config.url = "http://localhost:8069"
+        config.url = os.getenv("ODOO_URL", "http://localhost:8069")
         config.db = "test"
         config.username = "test"
         config.password = "test"

@@ -1,5 +1,6 @@
 """Tests for OdooConnection write operations (create, write, unlink)."""
 
+import os
 from unittest.mock import Mock, patch
 
 import pytest
@@ -15,7 +16,7 @@ class TestWriteOperations:
     def mock_config(self):
         """Create mock config."""
         config = Mock(spec=OdooConfig)
-        config.url = "http://localhost:8069"
+        config.url = os.getenv("ODOO_URL", "http://localhost:8069")
         config.db = "test"
         config.username = "test"
         config.password = "test"

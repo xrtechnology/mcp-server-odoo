@@ -1,6 +1,7 @@
 """Tests for performance optimization module."""
 
 import asyncio
+import os
 import time
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
@@ -205,7 +206,7 @@ class TestConnectionPool:
     def mock_config(self):
         """Create mock config."""
         config = Mock(spec=OdooConfig)
-        config.url = "http://localhost:8069"
+        config.url = os.getenv("ODOO_URL", "http://localhost:8069")
         return config
 
     def test_connection_pool_creation(self, mock_config):
@@ -374,7 +375,7 @@ class TestPerformanceManager:
     def mock_config(self):
         """Create mock config."""
         config = Mock(spec=OdooConfig)
-        config.url = "http://localhost:8069"
+        config.url = os.getenv("ODOO_URL", "http://localhost:8069")
         return config
 
     def test_performance_manager_creation(self, mock_config):
@@ -521,7 +522,7 @@ class TestPerformanceIntegration:
     def mock_config(self):
         """Create mock config."""
         config = Mock(spec=OdooConfig)
-        config.url = "http://localhost:8069"
+        config.url = os.getenv("ODOO_URL", "http://localhost:8069")
         return config
 
     @pytest.mark.asyncio

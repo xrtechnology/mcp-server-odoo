@@ -199,14 +199,15 @@ class OdooConnection:
         except Exception as e:
             raise OdooConnectionError(f"Connection test failed: {e}") from e
 
-    def disconnect(self) -> None:
+    def disconnect(self, suppress_logging: bool = False) -> None:
         """Close connection and cleanup resources."""
         if not self._connected:
-            try:
-                logger.warning("Not connected to Odoo")
-            except (ValueError, RuntimeError):
-                # Ignore logging errors during cleanup
-                pass
+            if not suppress_logging:
+                try:
+                    logger.warning("Not connected to Odoo")
+                except (ValueError, RuntimeError):
+                    # Ignore logging errors during cleanup
+                    pass
             return
 
         # Clear proxies (but don't close pooled connections)
@@ -221,11 +222,12 @@ class OdooConnection:
         self._authenticated = False
         self._auth_method = None
 
-        try:
-            logger.info("Disconnected from Odoo server")
-        except (ValueError, RuntimeError):
-            # Ignore logging errors during cleanup
-            pass
+        if not suppress_logging:
+            try:
+                logger.info("Disconnected from Odoo server")
+            except (ValueError, RuntimeError):
+                # Ignore logging errors during cleanup
+                pass
 
     def check_health(self) -> Tuple[bool, str]:
         """Check connection health.
@@ -330,7 +332,7 @@ class OdooConnection:
             # Only disconnect if we're actually connected
             if hasattr(self, "_connected") and self._connected:
                 # Suppress logging during cleanup to avoid I/O errors
-                self.disconnect()
+                self.disconnect(suppress_logging=True)
         except (ValueError, AttributeError, RuntimeError):
             # ValueError: I/O operation on closed file
             # AttributeError: object might be partially initialized

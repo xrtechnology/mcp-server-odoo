@@ -4,6 +4,7 @@ These tests use a real Odoo server at localhost:8069 to test
 connection management and error handling.
 """
 
+import os
 import socket
 from unittest.mock import MagicMock, patch
 
@@ -17,9 +18,9 @@ from mcp_server_odoo.odoo_connection import OdooConnection, OdooConnectionError,
 def test_config():
     """Create test configuration."""
     return OdooConfig(
-        url="http://localhost:8069",
+        url=os.getenv("ODOO_URL", "http://localhost:8069"),
         api_key="test_api_key",
-        database="mcp",
+        database=os.getenv("ODOO_DB"),
         log_level="INFO",
         default_limit=10,
         max_limit=100,
@@ -32,7 +33,7 @@ def invalid_config():
     return OdooConfig(
         url="http://invalid.host.nowhere:9999",
         api_key="test_api_key",
-        database="test",
+        database=os.getenv("ODOO_DB"),
         log_level="INFO",
         default_limit=10,
         max_limit=100,
@@ -60,7 +61,9 @@ class TestOdooConnectionInit:
 
     def test_parse_url_https(self):
         """Test URL parsing for HTTPS URLs."""
-        config = OdooConfig(url="https://odoo.example.com", api_key="test", database="test")
+        config = OdooConfig(
+            url="https://odoo.example.com", api_key="test", database=os.getenv("ODOO_DB")
+        )
         conn = OdooConnection(config)
 
         assert conn._url_components["scheme"] == "https"
@@ -70,7 +73,7 @@ class TestOdooConnectionInit:
     def test_parse_url_with_path(self):
         """Test URL parsing with path."""
         config = OdooConfig(
-            url="http://localhost:8069/custom/path", api_key="test", database="test"
+            url="http://localhost:8069/custom/path", api_key="test", database=os.getenv("ODOO_DB")
         )
         conn = OdooConnection(config)
 
@@ -80,7 +83,9 @@ class TestOdooConnectionInit:
     def test_parse_url_invalid_scheme(self):
         """Test URL parsing with invalid scheme."""
         with pytest.raises(ValueError, match="ODOO_URL must start with http:// or https://"):
-            config = OdooConfig(url="ftp://localhost:8069", api_key="test", database="test")
+            config = OdooConfig(
+                url="ftp://localhost:8069", api_key="test", database=os.getenv("ODOO_DB")
+            )
             OdooConnection(config)
 
     def test_build_endpoint_url(self, test_config):

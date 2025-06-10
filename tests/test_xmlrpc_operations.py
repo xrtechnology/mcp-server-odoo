@@ -4,6 +4,7 @@ This module tests the XML-RPC communication layer including execute methods
 and core Odoo operations.
 """
 
+import os
 import socket
 from functools import wraps
 from unittest.mock import Mock
@@ -49,7 +50,11 @@ class TestXMLRPCOperations:
     @pytest.fixture
     def config(self):
         """Create test configuration."""
-        return OdooConfig(url="http://localhost:8069", api_key="test_api_key", database="mcp")
+        return OdooConfig(
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            api_key="test_api_key",
+            database=os.getenv("ODOO_DB"),
+        )
 
     @pytest.fixture
     def authenticated_connection(self, config):
@@ -58,7 +63,7 @@ class TestXMLRPCOperations:
         conn._connected = True
         conn._authenticated = True
         conn._uid = 2
-        conn._database = "mcp"
+        conn._database = os.getenv("ODOO_DB", "db")
         conn._auth_method = "api_key"
         return conn
 
@@ -95,7 +100,7 @@ class TestXMLRPCOperations:
 
         # Verify call
         mock_proxy.execute_kw.assert_called_once_with(
-            "mcp",
+            os.getenv("ODOO_DB", "db"),
             2,
             "test_api_key",
             "res.partner",
@@ -119,7 +124,7 @@ class TestXMLRPCOperations:
 
         # Verify it called execute_kw correctly
         mock_proxy.execute_kw.assert_called_once_with(
-            "mcp", 2, "test_api_key", "res.partner", "read", [[1]], {}
+            os.getenv("ODOO_DB", "db"), 2, "test_api_key", "res.partner", "read", [[1]], {}
         )
 
     def test_execute_kw_xmlrpc_fault(self, authenticated_connection):
@@ -163,7 +168,7 @@ class TestXMLRPCOperations:
 
         # Verify call
         mock_proxy.execute_kw.assert_called_once_with(
-            "mcp",
+            os.getenv("ODOO_DB", "db"),
             2,
             "test_api_key",
             "res.partner",
@@ -190,7 +195,13 @@ class TestXMLRPCOperations:
 
         # Verify call
         mock_proxy.execute_kw.assert_called_once_with(
-            "mcp", 2, "test_api_key", "res.partner", "read", [[1, 2]], {"fields": ["name", "email"]}
+            os.getenv("ODOO_DB", "db"),
+            2,
+            "test_api_key",
+            "res.partner",
+            "read",
+            [[1, 2]],
+            {"fields": ["name", "email"]},
         )
 
     def test_search_read_operation(self, authenticated_connection):
@@ -212,7 +223,7 @@ class TestXMLRPCOperations:
 
         # Verify call
         mock_proxy.execute_kw.assert_called_once_with(
-            "mcp",
+            os.getenv("ODOO_DB", "db"),
             2,
             "test_api_key",
             "res.partner",
@@ -239,7 +250,7 @@ class TestXMLRPCOperations:
 
         # Verify call
         mock_proxy.execute_kw.assert_called_once_with(
-            "mcp", 2, "test_api_key", "res.partner", "fields_get", [], {}
+            os.getenv("ODOO_DB", "db"), 2, "test_api_key", "res.partner", "fields_get", [], {}
         )
 
     def test_search_count_operation(self, authenticated_connection):
@@ -256,7 +267,7 @@ class TestXMLRPCOperations:
 
         # Verify call
         mock_proxy.execute_kw.assert_called_once_with(
-            "mcp",
+            os.getenv("ODOO_DB", "db"),
             2,
             "test_api_key",
             "res.partner",
@@ -268,13 +279,16 @@ class TestXMLRPCOperations:
     def test_password_auth_uses_password(self, config):
         """Test that password auth uses password for execute_kw."""
         config = OdooConfig(
-            url="http://localhost:8069", username="admin", password="admin123", database="mcp"
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            username=os.getenv("ODOO_USER", "admin"),
+            password="admin123",
+            database=os.getenv("ODOO_DB"),
         )
         conn = OdooConnection(config)
         conn._connected = True
         conn._authenticated = True
         conn._uid = 2
-        conn._database = "mcp"
+        conn._database = os.getenv("ODOO_DB", "db")
         conn._auth_method = "password"
 
         # Mock object proxy
@@ -287,7 +301,7 @@ class TestXMLRPCOperations:
 
         # Verify password was used
         mock_proxy.execute_kw.assert_called_once_with(
-            "mcp", 2, "admin123", "res.partner", "search", [[]], {}
+            os.getenv("ODOO_DB", "db"), 2, "admin123", "res.partner", "search", [[]], {}
         )
 
 
@@ -301,8 +315,8 @@ class TestXMLRPCOperationsIntegration:
     def real_config(self):
         """Create configuration with real credentials."""
         return OdooConfig(
-            url="http://localhost:8069",
-            api_key="0ef5b399e9ee9c11b053dfb6eeba8de473c29fcd",
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            api_key=os.getenv("ODOO_API_KEY"),
             database=None,  # Auto-select
         )
 

@@ -73,8 +73,10 @@ class MCPTestServer:
         if self.config.api_key:
             env["ODOO_API_KEY"] = self.config.api_key
         else:
-            env["ODOO_USERNAME"] = self.config.username
-            env["ODOO_PASSWORD"] = self.config.password
+            if self.config.username:
+                env["ODOO_USERNAME"] = self.config.username
+            if self.config.password:
+                env["ODOO_PASSWORD"] = self.config.password
 
         # Start server subprocess
         self.server_process = subprocess.Popen(
@@ -367,7 +369,7 @@ def create_test_env_file(test_dir: Path) -> Path:
     env_content = f"""
 ODOO_URL={os.getenv("ODOO_URL")}
 ODOO_API_KEY={os.getenv("ODOO_API_KEY")}
-ODOO_DATABASE={os.getenv("ODOO_DB", "mcp")}
+ODOO_DATABASE={os.getenv("ODOO_DB")}
 ODOO_MCP_LOG_LEVEL={os.getenv("ODOO_MCP_LOG_LEVEL", "INFO")}
 """
 

@@ -5,8 +5,12 @@ import socket
 import xmlrpc.client
 
 import pytest
+from dotenv import load_dotenv
 
 from mcp_server_odoo.config import OdooConfig
+
+# Load .env file for tests
+load_dotenv()
 
 
 def is_odoo_server_available(host: str = "localhost", port: int = 8069) -> bool:
@@ -125,7 +129,7 @@ def test_config_with_server_check(odoo_server_required) -> OdooConfig:
     return OdooConfig(
         url=os.getenv("ODOO_URL"),
         api_key=os.getenv("ODOO_API_KEY"),
-        database=os.getenv("ODOO_DB", "mcp"),  # DB can be auto-detected
+        database=os.getenv("ODOO_DB"),  # DB can be auto-detected
         log_level=os.getenv("ODOO_MCP_LOG_LEVEL", "INFO"),
         default_limit=int(os.getenv("ODOO_MCP_DEFAULT_LIMIT", "10")),
         max_limit=int(os.getenv("ODOO_MCP_MAX_LIMIT", "100")),

@@ -84,10 +84,7 @@ if __name__ == "__main__":
     # Set up test environment
     if not os.getenv("ODOO_URL"):
         os.environ["ODOO_URL"] = "http://localhost:8069"
-    if not os.getenv("ODOO_DB"):
-        os.environ["ODOO_DB"] = "mcp"
-    if not os.getenv("ODOO_API_KEY"):
-        os.environ["ODOO_API_KEY"] = "0ef5b399e9ee9c11b053dfb6eeba8de473c29fcd"
+    # ODOO_DB and ODOO_API_KEY should be set in environment
 
     # Run test
     exit_code = asyncio.run(test_server())

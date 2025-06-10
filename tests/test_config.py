@@ -22,8 +22,10 @@ class TestOdooConfig:
 
     def test_valid_config_with_api_key(self):
         """Test creating a valid configuration with API key."""
-        config = OdooConfig(url="http://localhost:8069", api_key="test-api-key")
-        assert config.url == "http://localhost:8069"
+        config = OdooConfig(
+            url=os.getenv("ODOO_URL", "http://localhost:8069"), api_key="test-api-key"
+        )
+        assert config.url == os.getenv("ODOO_URL", "http://localhost:8069")
         assert config.api_key == "test-api-key"
         assert config.uses_api_key is True
         assert config.uses_credentials is False

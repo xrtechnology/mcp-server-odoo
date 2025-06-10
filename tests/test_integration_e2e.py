@@ -88,9 +88,9 @@ class TestServerLifecycle:
         try:
             # Load config from .env
             config = OdooConfig.from_env()
-            assert config.url == "http://localhost:8069"
-            assert config.api_key == "0ef5b399e9ee9c11b053dfb6eeba8de473c29fcd"
-            assert config.database == "mcp"
+            assert config.url == os.getenv("ODOO_URL", "http://localhost:8069")
+            assert config.api_key == os.getenv("ODOO_API_KEY")
+            assert config.database == os.getenv("ODOO_DB")
 
         finally:
             os.chdir(original_cwd)
@@ -137,10 +137,10 @@ class TestAuthenticationFlows:
         """Test fallback to username/password when API key fails."""
         # Create config with invalid API key
         config = OdooConfig(
-            url="http://localhost:8069",
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
             api_key="invalid_key",
-            database="mcp",
-            username="admin",
+            database=os.getenv("ODOO_DB"),
+            username=os.getenv("ODOO_USER", "admin"),
             password=os.getenv("ODOO_PASSWORD", "admin"),
         )
 

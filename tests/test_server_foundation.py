@@ -23,7 +23,7 @@ class TestServerFoundation:
     def valid_config(self):
         """Create a valid test configuration."""
         return OdooConfig(
-            url="http://localhost:8069",
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
             api_key="test_api_key_12345",
             database="test_db",
             log_level="INFO",
@@ -476,7 +476,7 @@ class TestFastMCPApp:
     def valid_config(self):
         """Create a valid test configuration."""
         return OdooConfig(
-            url="http://localhost:8069",
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
             api_key="test_api_key_12345",
             database="test_db",
             log_level="INFO",

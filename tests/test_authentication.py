@@ -4,6 +4,7 @@ This module tests both API key and username/password authentication flows.
 """
 
 import json
+import os
 import socket
 import urllib.error
 from unittest.mock import MagicMock, Mock, patch
@@ -34,24 +35,31 @@ class TestAuthentication:
     @pytest.fixture
     def config_api_key(self):
         """Create configuration with API key."""
-        return OdooConfig(url="http://localhost:8069", api_key="test_api_key", database="mcp")
+        return OdooConfig(
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            api_key="test_api_key",
+            database=os.getenv("ODOO_DB"),
+        )
 
     @pytest.fixture
     def config_password(self):
         """Create configuration with username/password."""
         return OdooConfig(
-            url="http://localhost:8069", username="admin", password="admin", database="mcp"
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            username=os.getenv("ODOO_USER", "admin"),
+            password=os.getenv("ODOO_PASSWORD", "admin"),
+            database=os.getenv("ODOO_DB"),
         )
 
     @pytest.fixture
     def config_both(self):
         """Create configuration with both auth methods."""
         return OdooConfig(
-            url="http://localhost:8069",
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
             api_key="test_api_key",
-            username="admin",
-            password="admin",
-            database="mcp",
+            username=os.getenv("ODOO_USER", "admin"),
+            password=os.getenv("ODOO_PASSWORD", "admin"),
+            database=os.getenv("ODOO_DB"),
         )
 
     @pytest.fixture
@@ -123,7 +131,9 @@ class TestAuthentication:
         assert connection_password.auth_method == "password"
 
         # Verify authenticate was called correctly
-        mock_common.authenticate.assert_called_once_with("mcp", "admin", "admin", {})
+        mock_common.authenticate.assert_called_once_with(
+            "mcp", os.getenv("ODOO_USER", "admin"), os.getenv("ODOO_PASSWORD", "admin"), {}
+        )
 
     def test_password_authentication_failed(self, connection_password):
         """Test failed username/password authentication."""
@@ -178,9 +188,10 @@ class TestAuthentication:
 
     def test_authenticate_with_auto_database(self, connection_api_key):
         """Test authentication with automatic database selection."""
-        # Mock database list
+        # Mock database list to return the configured database
         mock_db = Mock()
-        mock_db.list.return_value = ["mcp"]
+        db_name = os.getenv("ODOO_DB")
+        mock_db.list.return_value = [db_name]
         connection_api_key._db_proxy = mock_db
 
         # Mock API key auth
@@ -194,7 +205,7 @@ class TestAuthentication:
             # Authenticate without specifying database
             connection_api_key.authenticate()
 
-            assert connection_api_key.database == "mcp"
+            assert connection_api_key.database == db_name
 
     def test_authentication_state_cleared_on_disconnect(self, connection_api_key):
         """Test authentication state is cleared on disconnect."""
@@ -224,8 +235,8 @@ class TestAuthenticationIntegration:
     def real_config_api_key(self):
         """Create configuration with real API key."""
         return OdooConfig(
-            url="http://localhost:8069",
-            api_key="0ef5b399e9ee9c11b053dfb6eeba8de473c29fcd",
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            api_key=os.getenv("ODOO_API_KEY"),
             database=None,  # Let it auto-select
         )
 
@@ -233,9 +244,9 @@ class TestAuthenticationIntegration:
     def real_config_password(self):
         """Create configuration with username/password."""
         return OdooConfig(
-            url="http://localhost:8069",
-            username="admin",
-            password="admin",
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            username=os.getenv("ODOO_USER", "admin"),
+            password=os.getenv("ODOO_PASSWORD", "admin"),
             database=None,  # Let it auto-select
         )
 
@@ -270,7 +281,9 @@ class TestAuthenticationIntegration:
     def test_real_invalid_api_key(self):
         """Test authentication with invalid API key."""
         config = OdooConfig(
-            url="http://localhost:8069", api_key="invalid_key_12345", database="mcp"
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            api_key="invalid_key_12345",
+            database=os.getenv("ODOO_DB"),
         )
 
         with OdooConnection(config) as conn:
@@ -280,7 +293,10 @@ class TestAuthenticationIntegration:
     def test_real_invalid_password(self):
         """Test authentication with invalid password."""
         config = OdooConfig(
-            url="http://localhost:8069", username="admin", password="wrong_password", database="mcp"
+            url=os.getenv("ODOO_URL", "http://localhost:8069"),
+            username=os.getenv("ODOO_USER", "admin"),
+            password="wrong_password",
+            database=os.getenv("ODOO_DB"),
         )
 
         with OdooConnection(config) as conn:
