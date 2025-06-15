@@ -52,7 +52,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print("  ODOO_MCP_DEFAULT_LIMIT Default record limit (default: 10)", file=sys.stderr)
         print("  ODOO_MCP_MAX_LIMIT     Maximum record limit (default: 100)", file=sys.stderr)
         print(
-            "\nFor more information, visit: https://github.com/yourusername/odoo-mcp-server",
+            "\nFor more information, visit: https://github.com/ivnvxd/mcp-server-odoo",
             file=sys.stderr,
         )
         return 0
