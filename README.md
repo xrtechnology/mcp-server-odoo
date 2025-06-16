@@ -25,9 +25,31 @@ An MCP server that enables AI assistants like Claude to interact with Odoo ERP s
 ### Prerequisites
 
 - Python 3.10 or higher
-- Access to an Odoo instance (version 18.0+)
+- Access to an Odoo instance (version 18.0)
 - The [Odoo MCP module](https://github.com/ivnvxd/mcp-server-odoo/tree/main/odoo-apps/mcp_server) installed on your Odoo server
 - An API key generated in Odoo (Settings > Users > API Keys)
+
+### Install UV First
+
+The MCP server runs on your **local computer** (where Claude Desktop is installed), not on your Odoo server. You need to install UV on your local machine:
+
+<details>
+<summary>macOS/Linux</summary>
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+</details>
+
+<details>
+<summary>Windows</summary>
+
+```powershell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+</details>
+
+After installation, restart your terminal to ensure UV is in your PATH.
 
 ### Installing via MCP Settings (Recommended)
 
@@ -164,6 +186,10 @@ The server requires the following environment variables:
 | `ODOO_DB` | No | Database name (auto-detected if not set) | `mycompany` |
 
 *Either `ODOO_API_KEY` or both `ODOO_USER` and `ODOO_PASSWORD` are required.
+
+**Notes:**
+- If database listing is restricted on your server, you must specify `ODOO_DB`
+- API key authentication is recommended for better security
 
 ### Setting up Odoo
 
@@ -320,6 +346,59 @@ If you can't access certain models:
 1. Go to Settings > MCP Server > Enabled Models in Odoo
 2. Ensure the model is in the list and has appropriate permissions
 3. Check that your user has access to that model in Odoo's security settings
+</details>
+
+<details>
+<summary>"spawn uvx ENOENT" Error</summary>
+
+This error means UV is not installed or not in your PATH:
+
+**Solution 1: Install UV** (see Installation section above)
+
+**Solution 2: macOS PATH Issue**
+Claude Desktop on macOS doesn't inherit your shell's PATH. Try:
+1. Quit Claude Desktop completely (Cmd+Q)
+2. Open Terminal
+3. Launch Claude from Terminal:
+   ```bash
+   open -a "Claude"
+   ```
+
+**Solution 3: Use Full Path**
+Find UV location and use full path:
+```bash
+which uvx
+# Example output: /Users/yourname/.local/bin/uvx
+```
+
+Then update your config:
+```json
+{
+  "command": "/Users/yourname/.local/bin/uvx",
+  "args": ["mcp-server-odoo"]
+}
+```
+</details>
+
+<details>
+<summary>Database Configuration Issues</summary>
+
+If you see "Access Denied" when listing databases:
+- This is normal - some Odoo instances restrict database listing for security
+- Make sure to specify `ODOO_DB` in your configuration
+- The server will use your specified database without validation
+
+Example configuration:
+```json
+{
+  "env": {
+    "ODOO_URL": "https://your-odoo.com",
+    "ODOO_API_KEY": "your-key",
+    "ODOO_DB": "your-database-name"
+  }
+}
+```
+Note: `ODOO_DB` is required if database listing is restricted on your server.
 </details>
 
 <details>
