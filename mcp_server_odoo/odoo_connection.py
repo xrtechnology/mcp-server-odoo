@@ -394,23 +394,24 @@ class OdooConnection:
         Raises:
             OdooConnectionError: If no suitable database can be selected
         """
-        # If database is explicitly configured, validate and use it
+        # If database is explicitly configured, use it without validation
+        # Database listing may be restricted for security reasons
         if self.config.database:
             db_name = self.config.database
             logger.info(f"Using configured database: {db_name}")
-
-            if not self.database_exists(db_name):
-                raise OdooConnectionError(
-                    f"Configured database '{db_name}' does not exist on server"
-                )
-
+            # Skip existence check as database listing might be restricted
             return db_name
 
         # List available databases
         try:
             databases = self.list_databases()
         except Exception as e:
-            raise OdooConnectionError(f"Failed to list databases for auto-selection: {e}") from e
+            # If database listing is restricted, we cannot auto-select
+            logger.warning(f"Cannot list databases (may be restricted): {e}")
+            raise OdooConnectionError(
+                "Database auto-selection failed. Database listing may be restricted. "
+                "Please specify ODOO_DB in your configuration."
+            ) from e
 
         # Handle different scenarios
         if not databases:

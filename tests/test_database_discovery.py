@@ -113,9 +113,11 @@ class TestDatabaseDiscovery:
         selected = connection.auto_select_database()
 
         assert selected == "mydb"
+        # list() should not be called when database is configured
+        mock_proxy.list.assert_not_called()
 
     def test_auto_select_configured_database_not_exists(self):
-        """Test auto-selection fails when configured database doesn't exist."""
+        """Test auto-selection uses configured database even if not in list (skip validation)."""
         # Create config with explicit database that doesn't exist
         config = OdooConfig(
             url="http://localhost:8069", api_key="test_api_key", database="nonexistent"
@@ -126,8 +128,11 @@ class TestDatabaseDiscovery:
         mock_proxy.list.return_value = ["db1", "test"]
         connection._db_proxy = mock_proxy
 
-        with pytest.raises(OdooConnectionError, match="does not exist"):
-            connection.auto_select_database()
+        # Should return configured database without validation
+        selected = connection.auto_select_database()
+        assert selected == "nonexistent"
+        # list() should not be called when database is configured
+        mock_proxy.list.assert_not_called()
 
     def test_auto_select_single_database(self, connection):
         """Test auto-selection with single database."""

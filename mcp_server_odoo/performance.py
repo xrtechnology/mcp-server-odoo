@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
-from xmlrpc.client import ServerProxy, Transport
+from xmlrpc.client import SafeTransport, ServerProxy, Transport
 
 from .config import OdooConfig
 from .logging_config import get_logger
@@ -271,7 +271,11 @@ class ConnectionPool:
         self._connections: List[Tuple[ServerProxy, float]] = []
         self._endpoint_map: List[str] = []  # Track endpoints for each connection
         self._lock = threading.RLock()
-        self._transport = Transport()
+        # Use SafeTransport for HTTPS, regular Transport for HTTP
+        if config.url.startswith("https://"):
+            self._transport = SafeTransport()
+        else:
+            self._transport = Transport()
         self._last_cleanup = time.time()
         self._stats = {
             "connections_created": 0,
