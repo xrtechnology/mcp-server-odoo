@@ -357,6 +357,22 @@ class OdooToolHandler:
             return await self._handle_list_models_tool()
 
         @self.app.tool()
+        async def list_resource_templates() -> Dict[str, Any]:
+            """List available resource URI templates.
+
+            Since MCP resources with parameters are registered as templates,
+            they don't appear in the standard resource list. This tool provides
+            information about available resource patterns you can use.
+
+            Returns:
+                Dictionary with resource template information including:
+                - templates: List of resource template definitions
+                - examples: Example URIs for each template
+                - enabled_models: List of models you can use with these templates
+            """
+            return await self._handle_list_resource_templates_tool()
+
+        @self.app.tool()
         async def create_record(
             model: str,
             values: Dict[str, Any],
@@ -607,6 +623,76 @@ class OdooToolHandler:
             logger.error(f"Error in list_models tool: {e}")
             sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
             raise ToolError(f"Failed to list models: {sanitized_msg}") from e
+
+    async def _handle_list_resource_templates_tool(self) -> Dict[str, Any]:
+        """Handle list resource templates tool request."""
+        try:
+            # Get list of enabled models that can be used with resources
+            enabled_models = self.access_controller.get_enabled_models()
+            model_names = [m["model"] for m in enabled_models if m.get("read", True)]
+
+            # Define the resource templates
+            templates = [
+                {
+                    "uri_template": "odoo://{model}/record/{record_id}",
+                    "description": "Get a specific record by ID",
+                    "parameters": {
+                        "model": "Odoo model name (e.g., res.partner)",
+                        "record_id": "Record ID (e.g., 10)",
+                    },
+                    "example": "odoo://res.partner/record/10",
+                },
+                {
+                    "uri_template": "odoo://{model}/search",
+                    "description": "Search records with optional filters",
+                    "parameters": {
+                        "model": "Odoo model name",
+                        "domain": "(Optional) URL-encoded domain filter",
+                        "fields": "(Optional) Comma-separated field names",
+                        "limit": "(Optional) Max records to return",
+                        "offset": "(Optional) Skip N records",
+                        "order": "(Optional) Sort order (e.g., 'name asc')",
+                    },
+                    "example": "odoo://res.partner/search?limit=10&fields=name,email",
+                },
+                {
+                    "uri_template": "odoo://{model}/browse?ids={ids}",
+                    "description": "Get multiple records by their IDs",
+                    "parameters": {
+                        "model": "Odoo model name",
+                        "ids": "Comma-separated record IDs (e.g., 10,11,12)",
+                    },
+                    "example": "odoo://res.partner/browse?ids=10,11,12",
+                },
+                {
+                    "uri_template": "odoo://{model}/count",
+                    "description": "Count records matching optional criteria",
+                    "parameters": {
+                        "model": "Odoo model name",
+                        "domain": "(Optional) URL-encoded domain filter",
+                    },
+                    "example": "odoo://res.partner/count?domain=%5B%5B%22is_company%22%2C%22%3D%22%2Ctrue%5D%5D",
+                },
+                {
+                    "uri_template": "odoo://{model}/fields",
+                    "description": "Get field definitions for a model",
+                    "parameters": {"model": "Odoo model name"},
+                    "example": "odoo://res.partner/fields",
+                },
+            ]
+
+            # Return the resource template information
+            return {
+                "templates": templates,
+                "enabled_models": model_names[:10],  # Show first 10 as examples
+                "total_models": len(model_names),
+                "note": "Replace {model} with any enabled model name and {record_id}/{ids} with actual IDs",
+            }
+
+        except Exception as e:
+            logger.error(f"Error in list_resource_templates tool: {e}")
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ToolError(f"Failed to list resource templates: {sanitized_msg}") from e
 
     async def _handle_create_record_tool(
         self,
