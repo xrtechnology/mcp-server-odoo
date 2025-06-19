@@ -59,7 +59,6 @@ class OdooMCPServer:
         # Create FastMCP instance with server metadata
         self.app = FastMCP(
             name="odoo-mcp-server",
-            version=SERVER_VERSION,
             instructions="MCP server for accessing and managing Odoo ERP data through the Model Context Protocol",
         )
 
@@ -181,6 +180,46 @@ class OdooMCPServer:
         import asyncio
 
         asyncio.run(self.run_stdio())
+
+    # SSE transport has been deprecated in MCP protocol version 2025-03-26
+    # Use streamable-http transport instead
+
+    async def run_http(self, host: str = "localhost", port: int = 8000):
+        """Run the server using streamable HTTP transport.
+
+        Args:
+            host: Host to bind to
+            port: Port to bind to
+        """
+        try:
+            # Establish connection before starting server
+            with perf_logger.track_operation("server_startup"):
+                self._ensure_connection()
+
+                # Register resources after connection is established
+                self._register_resources()
+                self._register_tools()
+
+            logger.info(f"Starting MCP server with HTTP transport on {host}:{port}...")
+
+            # Update FastMCP settings for host and port
+            self.app.settings.host = host
+            self.app.settings.port = port
+
+            # Use the specific streamable HTTP async method
+            await self.app.run_streamable_http_async()
+
+        except KeyboardInterrupt:
+            logger.info("Server interrupted by user")
+        except (OdooConnectionError, ConfigurationError):
+            # Let these specific errors propagate
+            raise
+        except Exception as e:
+            context = ErrorContext(operation="server_run_http")
+            error_handler.handle_error(e, context=context)
+        finally:
+            # Always cleanup connection
+            self._cleanup_connection()
 
     def get_capabilities(self) -> Dict[str, Dict[str, bool]]:
         """Get server capabilities.

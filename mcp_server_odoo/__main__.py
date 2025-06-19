@@ -4,8 +4,10 @@ This module provides the command-line interface for running the
 Odoo MCP server via uvx or direct execution.
 """
 
+import argparse
 import asyncio
 import logging
+import os
 import sys
 from typing import Optional
 
@@ -19,7 +21,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     """Main entry point for the MCP server.
 
     This function handles command-line arguments, loads configuration,
-    and runs the MCP server with stdio transport.
+    and runs the MCP server with the specified transport.
 
     Args:
         argv: Command line arguments (defaults to sys.argv[1:])
@@ -30,48 +32,79 @@ def main(argv: Optional[list[str]] = None) -> int:
     # Load environment variables from .env file
     load_dotenv()
 
-    # Parse command line arguments
-    if argv is None:
-        argv = sys.argv[1:]
+    # Create argument parser
+    parser = argparse.ArgumentParser(
+        description="Odoo MCP Server - Model Context Protocol server for Odoo ERP",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Environment variables:
+  ODOO_URL           Odoo server URL (required)
+  ODOO_API_KEY       Odoo API key (preferred authentication)
+  ODOO_USER          Odoo username (fallback if no API key)
+  ODOO_PASSWORD      Odoo password (required with username)
+  ODOO_DB            Odoo database name (auto-detected if not set)
 
-    # Handle help flag
-    if "--help" in argv or "-h" in argv:
-        print("Odoo MCP Server - Model Context Protocol server for Odoo ERP", file=sys.stderr)
-        print("\nUsage: mcp-server-odoo [options]", file=sys.stderr)
-        print("\nOptions:", file=sys.stderr)
-        print("  -h, --help         Show this help message and exit", file=sys.stderr)
-        print("  --version          Show version information", file=sys.stderr)
-        print("\nEnvironment variables:", file=sys.stderr)
-        print("  ODOO_URL           Odoo server URL (required)", file=sys.stderr)
-        print("  ODOO_API_KEY       Odoo API key (preferred authentication)", file=sys.stderr)
-        print("  ODOO_USER          Odoo username (fallback if no API key)", file=sys.stderr)
-        print("  ODOO_PASSWORD      Odoo password (required with username)", file=sys.stderr)
-        print("  ODOO_DB            Odoo database name (auto-detected if not set)", file=sys.stderr)
-        print("\nOptional environment variables:", file=sys.stderr)
-        print("  ODOO_MCP_LOG_LEVEL    Log level (DEBUG, INFO, WARNING, ERROR)", file=sys.stderr)
-        print("  ODOO_MCP_DEFAULT_LIMIT Default record limit (default: 10)", file=sys.stderr)
-        print("  ODOO_MCP_MAX_LIMIT     Maximum record limit (default: 100)", file=sys.stderr)
-        print(
-            "\nFor more information, visit: https://github.com/ivnvxd/mcp-server-odoo",
-            file=sys.stderr,
-        )
-        return 0
+Optional environment variables:
+  ODOO_MCP_LOG_LEVEL    Log level (DEBUG, INFO, WARNING, ERROR)
+  ODOO_MCP_DEFAULT_LIMIT Default record limit (default: 10)
+  ODOO_MCP_MAX_LIMIT     Maximum record limit (default: 100)
+  ODOO_MCP_TRANSPORT     Transport type: stdio or streamable-http (default: stdio)
+  ODOO_MCP_HOST          Server host for HTTP transports (default: localhost)
+  ODOO_MCP_PORT          Server port for HTTP transports (default: 8000)
 
-    # Handle version flag
-    if "--version" in argv:
-        print(f"odoo-mcp-server v{SERVER_VERSION}", file=sys.stderr)
-        return 0
+For more information, visit: https://github.com/ivnvxd/mcp-server-odoo""",
+    )
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"odoo-mcp-server v{SERVER_VERSION}",
+    )
+
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http"],
+        default=os.getenv("ODOO_MCP_TRANSPORT", "stdio"),
+        help="Transport type to use (default: stdio)",
+    )
+
+    parser.add_argument(
+        "--host",
+        default=os.getenv("ODOO_MCP_HOST", "localhost"),
+        help="Server host for HTTP transports (default: localhost)",
+    )
+
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.getenv("ODOO_MCP_PORT", "8000")),
+        help="Server port for HTTP transports (default: 8000)",
+    )
+
+    # Parse arguments
+    args = parser.parse_args(argv)
 
     try:
+        # Override environment variables with CLI arguments
+        if args.transport:
+            os.environ["ODOO_MCP_TRANSPORT"] = args.transport
+        if args.host:
+            os.environ["ODOO_MCP_HOST"] = args.host
+        if args.port:
+            os.environ["ODOO_MCP_PORT"] = str(args.port)
+
         # Load configuration from environment
         config = load_config()
 
         # Create server instance
         server = OdooMCPServer(config)
 
-        # Run the server with stdio transport
-        # This is the standard way to run MCP servers with uvx
-        asyncio.run(server.run_stdio())
+        # Run the server with the specified transport
+        if config.transport == "stdio":
+            asyncio.run(server.run_stdio())
+        elif config.transport == "streamable-http":
+            asyncio.run(server.run_http(host=config.host, port=config.port))
+        else:
+            raise ValueError(f"Unsupported transport: {config.transport}")
 
         return 0
 

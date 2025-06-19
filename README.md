@@ -191,6 +191,62 @@ The server requires the following environment variables:
 - If database listing is restricted on your server, you must specify `ODOO_DB`
 - API key authentication is recommended for better security
 
+### Transport Options
+
+The server supports multiple transport protocols for different use cases:
+
+#### 1. **stdio** (Default)
+Standard input/output transport - used by desktop AI applications like Claude Desktop.
+
+```bash
+# Default transport - no additional configuration needed
+uvx mcp-server-odoo
+```
+
+#### 2. **streamable-http**
+Standard HTTP transport for REST API-style access and remote connectivity.
+
+```bash
+# Run with HTTP transport
+uvx mcp-server-odoo --transport streamable-http --host 0.0.0.0 --port 8000
+
+# Or use environment variables
+export ODOO_MCP_TRANSPORT=streamable-http
+export ODOO_MCP_HOST=0.0.0.0
+export ODOO_MCP_PORT=8000
+uvx mcp-server-odoo
+```
+
+The HTTP endpoint will be available at: `http://localhost:8000/mcp/`
+
+> **Note**: SSE (Server-Sent Events) transport has been deprecated in MCP protocol version 2025-03-26. Use streamable-http transport instead for HTTP-based communication. Requires MCP library v1.9.4 or higher for proper session management.
+
+#### Transport Configuration
+
+| Variable/Flag | Description | Default |
+|--------------|-------------|---------|
+| `ODOO_MCP_TRANSPORT` / `--transport` | Transport type: stdio, streamable-http | `stdio` |
+| `ODOO_MCP_HOST` / `--host` | Host to bind for HTTP transports | `localhost` |
+| `ODOO_MCP_PORT` / `--port` | Port to bind for HTTP transports | `8000` |
+
+**Example: Running streamable-http transport for remote access**
+
+```json
+{
+  "mcpServers": {
+    "odoo-remote": {
+      "command": "uvx",
+      "args": ["mcp-server-odoo", "--transport", "streamable-http", "--port", "8080"],
+      "env": {
+        "ODOO_URL": "https://your-odoo-instance.com",
+        "ODOO_API_KEY": "your-api-key-here",
+        "ODOO_DB": "your-database-name"
+      }
+    }
+  }
+}
+```
+
 ### Setting up Odoo
 
 1. **Install the MCP module**:
@@ -449,6 +505,34 @@ npx @modelcontextprotocol/inspector uvx mcp-server-odoo
 npx @modelcontextprotocol/inspector python -m mcp_server_odoo
 ```
 </details>
+
+## Testing
+
+### Transport Tests
+
+You can test both stdio and streamable-http transports to ensure they're working correctly:
+
+```bash
+# Run comprehensive transport tests
+python tests/run_transport_tests.py
+```
+
+This will test:
+- **stdio transport**: Basic initialization and communication
+- **streamable-http transport**: HTTP endpoint, session management, and tool calls
+
+### Unit Tests
+
+For complete testing including unit and integration tests:
+
+```bash
+# Run all tests
+uv run pytest --cov
+
+# Run specific test categories
+uv run pytest tests/test_tools.py -v
+uv run pytest tests/test_server_foundation.py -v
+```
 
 ## License
 

@@ -7,7 +7,7 @@ for connecting to Odoo via XML-RPC.
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from dotenv import load_dotenv
 
@@ -29,6 +29,11 @@ class OdooConfig:
     log_level: str = "INFO"
     default_limit: int = 10
     max_limit: int = 100
+
+    # MCP transport configuration
+    transport: Literal["stdio", "streamable-http"] = "stdio"
+    host: str = "localhost"
+    port: int = 8000
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -67,6 +72,18 @@ class OdooConfig:
                 f"Invalid log level: {self.log_level}. "
                 f"Must be one of: {', '.join(valid_log_levels)}"
             )
+
+        # Validate transport
+        valid_transports = {"stdio", "streamable-http"}
+        if self.transport not in valid_transports:
+            raise ValueError(
+                f"Invalid transport: {self.transport}. "
+                f"Must be one of: {', '.join(valid_transports)}"
+            )
+
+        # Validate port
+        if self.port <= 0 or self.port > 65535:
+            raise ValueError("Port must be between 1 and 65535")
 
     @property
     def uses_api_key(self) -> bool:
@@ -144,6 +161,9 @@ def load_config(env_file: Optional[Path] = None) -> OdooConfig:
         log_level=os.getenv("ODOO_MCP_LOG_LEVEL", "INFO").strip(),
         default_limit=get_int_env("ODOO_MCP_DEFAULT_LIMIT", 10),
         max_limit=get_int_env("ODOO_MCP_MAX_LIMIT", 100),
+        transport=os.getenv("ODOO_MCP_TRANSPORT", "stdio").strip(),
+        host=os.getenv("ODOO_MCP_HOST", "localhost").strip(),
+        port=get_int_env("ODOO_MCP_PORT", 8000),
     )
 
     return config

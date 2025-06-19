@@ -398,27 +398,34 @@ class TestMainEntry:
         """Test --help flag."""
         from mcp_server_odoo.__main__ import main
 
-        exit_code = main(["--help"])
-
-        assert exit_code == 0
+        # argparse raises SystemExit for --help
+        try:
+            exit_code = main(["--help"])
+            assert exit_code == 0
+        except SystemExit as e:
+            assert e.code == 0
 
         captured = capsys.readouterr()
-        # Help output now goes to stderr to avoid interfering with MCP JSON-RPC communication
-        assert "Odoo MCP Server" in captured.err
-        assert "Usage:" in captured.err
-        assert "ODOO_URL" in captured.err
+        # Help output goes to stdout by default from argparse
+        help_output = captured.out or captured.err
+        assert "Odoo MCP Server" in help_output
+        assert "ODOO_URL" in help_output
 
     def test_version_flag(self, capsys):
         """Test --version flag."""
         from mcp_server_odoo.__main__ import main
 
-        exit_code = main(["--version"])
-
-        assert exit_code == 0
+        # argparse raises SystemExit for --version
+        try:
+            exit_code = main(["--version"])
+            assert exit_code == 0
+        except SystemExit as e:
+            assert e.code == 0
 
         captured = capsys.readouterr()
-        # Version output now goes to stderr to avoid interfering with MCP JSON-RPC communication
-        assert f"odoo-mcp-server v{SERVER_VERSION}" in captured.err
+        # Version output goes to stdout by default from argparse
+        version_output = captured.out or captured.err
+        assert f"odoo-mcp-server v{SERVER_VERSION}" in version_output
 
     def test_main_with_invalid_config(self, capsys, monkeypatch):
         """Test main with invalid configuration."""
