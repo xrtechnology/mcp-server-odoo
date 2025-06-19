@@ -5,7 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2025-06-19
+
+### Added
+- **Write Operations**: Enabled full CRUD functionality with `create_record`, `update_record`, and `delete_record` tools (#5)
 
 ### Changed
 - **Resource Simplification**: Removed query parameters from resource URIs due to FastMCP limitations - use tools for advanced queries (#4)
@@ -48,9 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Session Management**: Automatic credential injection and session handling
 - **Audit Logging**: Complete operation logging for security
 
-### Limitations
-- **Read-Only**: Write operations (create, update, delete) not implemented
+## Limitations
 - **No Prompts**: Guided workflows not available
 - **Alpha Status**: API may change before 1.0.0
 
-**Note**: This alpha release provides production-ready read operations for Odoo data access via AI assistants.
+**Note**: This alpha release provides production-ready data access for Odoo via AI assistants.

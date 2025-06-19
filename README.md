@@ -8,11 +8,14 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 
-An MCP server that enables AI assistants like Claude to interact with Odoo ERP systems. Access business data, search records, and work with Odoo through natural language.
+An MCP server that enables AI assistants like Claude to interact with Odoo ERP systems. Access business data, search records, create new entries, update existing data, and manage your Odoo instance through natural language.
 
 ## Features
 
 - 🔍 **Search and retrieve** any Odoo record (customers, products, invoices, etc.)
+- ✨ **Create new records** with field validation and permission checks
+- ✏️ **Update existing data** with smart field handling
+- 🗑️ **Delete records** respecting model-level permissions
 - 📊 **Browse multiple records** and get formatted summaries
 - 🔢 **Count records** matching specific criteria
 - 📋 **Inspect model fields** to understand data structure
@@ -269,12 +272,21 @@ The HTTP endpoint will be available at: `http://localhost:8000/mcp/`
 
 Once configured, you can ask Claude:
 
+**Search & Retrieve:**
 - "Show me all customers from Spain"
 - "Find products with stock below 10 units"
 - "List today's sales orders over $1000"
 - "Search for unpaid invoices from last month"
 - "Count how many active employees we have"
 - "Show me the contact information for Microsoft"
+
+**Create & Manage:**
+- "Create a new customer contact for Acme Corporation"
+- "Add a new product called 'Premium Widget' with price $99.99"
+- "Create a calendar event for tomorrow at 2 PM"
+- "Update the phone number for customer John Doe to +1-555-0123"
+- "Change the status of order SO/2024/001 to confirmed"
+- "Delete the test contact we created earlier"
 
 ## Available Tools
 
