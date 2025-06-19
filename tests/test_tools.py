@@ -217,6 +217,121 @@ class TestOdooToolHandler:
         )
 
     @pytest.mark.asyncio
+    async def test_search_records_with_string_domain(
+        self, handler, mock_connection, mock_access_controller, mock_app
+    ):
+        """Test search_records with domain as JSON string (Claude Desktop format)."""
+        # Setup mocks
+        mock_access_controller.validate_model_access.return_value = None
+        mock_connection.search_count.return_value = 1
+        mock_connection.search.return_value = [15]
+        mock_connection.read.return_value = [
+            {"id": 15, "name": "Azure Interior", "is_company": True},
+        ]
+
+        # Get the registered search_records function
+        search_records = mock_app._tools["search_records"]
+
+        # Domain as JSON string (as sent by Claude Desktop)
+        domain_string = '[["is_company", "=", true], ["name", "ilike", "azure interior"]]'
+
+        result = await search_records(model="res.partner", domain=domain_string, limit=5)
+
+        # Verify result
+        assert result["model"] == "res.partner"
+        assert result["total"] == 1
+        assert len(result["records"]) == 1
+        assert result["records"][0]["name"] == "Azure Interior"
+
+        # Verify the domain was parsed and passed correctly as a list
+        expected_domain = [["is_company", "=", True], ["name", "ilike", "azure interior"]]
+        mock_connection.search_count.assert_called_with("res.partner", expected_domain)
+        mock_connection.search.assert_called_with(
+            "res.partner", expected_domain, limit=5, offset=0, order=None
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_records_with_python_style_domain(
+        self, handler, mock_connection, mock_access_controller, mock_app
+    ):
+        """Test search_records with Python-style domain string (single quotes)."""
+        # Setup mocks
+        mock_access_controller.validate_model_access.return_value = None
+        mock_connection.search_count.return_value = 1
+        mock_connection.search.return_value = [15]
+        mock_connection.read.return_value = [
+            {"id": 15, "name": "Azure Interior", "is_company": True},
+        ]
+
+        # Get the registered search_records function
+        search_records = mock_app._tools["search_records"]
+
+        # Domain with single quotes (Python style)
+        domain_string = "[['name', 'ilike', 'azure interior'], ['is_company', '=', True]]"
+
+        result = await search_records(model="res.partner", domain=domain_string, limit=5)
+
+        # Verify result
+        assert result["model"] == "res.partner"
+        assert result["total"] == 1
+        assert len(result["records"]) == 1
+        assert result["records"][0]["name"] == "Azure Interior"
+
+        # Verify the domain was parsed correctly
+        expected_domain = [["name", "ilike", "azure interior"], ["is_company", "=", True]]
+        mock_connection.search_count.assert_called_with("res.partner", expected_domain)
+
+    @pytest.mark.asyncio
+    async def test_search_records_with_invalid_json_domain(
+        self, handler, mock_connection, mock_access_controller, mock_app
+    ):
+        """Test search_records with invalid JSON string domain."""
+        # Setup mocks
+        mock_access_controller.validate_model_access.return_value = None
+
+        # Get the registered search_records function
+        search_records = mock_app._tools["search_records"]
+
+        # Invalid JSON string
+        invalid_domain = '[["is_company", "=", true'  # Missing closing brackets
+
+        # Should raise ValidationError
+        with pytest.raises(ValidationError) as exc_info:
+            await search_records(model="res.partner", domain=invalid_domain, limit=5)
+
+        assert "Invalid search criteria format" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_search_records_with_string_fields(
+        self, handler, mock_connection, mock_access_controller, mock_app
+    ):
+        """Test search_records with fields as JSON string."""
+        # Setup mocks
+        mock_access_controller.validate_model_access.return_value = None
+        mock_connection.search_count.return_value = 1
+        mock_connection.search.return_value = [15]
+        mock_connection.read.return_value = [
+            {"id": 15, "name": "Azure Interior", "is_company": True},
+        ]
+
+        # Get the registered search_records function
+        search_records = mock_app._tools["search_records"]
+
+        # Fields as JSON string (as sometimes sent by Claude Desktop)
+        fields_string = '["name", "is_company", "id"]'
+
+        result = await search_records(
+            model="res.partner", domain=[["is_company", "=", True]], fields=fields_string, limit=5
+        )
+
+        # Verify result
+        assert result["model"] == "res.partner"
+        assert result["total"] == 1
+
+        # Verify fields were parsed correctly
+        mock_connection.read.assert_called_with("res.partner", [15], ["name", "is_company", "id"])
+
+    @pytest.mark.asyncio
     async def test_search_records_with_complex_domain(
         self, handler, mock_connection, mock_access_controller, mock_app
     ):

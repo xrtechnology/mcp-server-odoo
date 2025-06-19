@@ -5,6 +5,7 @@ Tools are different from resources - they can have side effects and perform
 actions like creating, updating, or deleting records.
 """
 
+import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
@@ -262,8 +263,8 @@ class OdooToolHandler:
         @self.app.tool()
         async def search_records(
             model: str,
-            domain: Optional[List[Union[str, List[Any]]]] = None,
-            fields: Optional[List[str]] = None,
+            domain: Optional[Union[str, List[Union[str, List[Any]]]]] = None,
+            fields: Optional[Union[str, List[str]]] = None,
             limit: int = 10,
             offset: int = 0,
             order: Optional[str] = None,
@@ -272,11 +273,15 @@ class OdooToolHandler:
 
             Args:
                 model: The Odoo model name (e.g., 'res.partner')
-                domain: Odoo domain filter (e.g., [['is_company', '=', True]])
-                fields: Field selection options:
+                domain: Odoo domain filter - can be:
+                    - A list: [['is_company', '=', True]]
+                    - A JSON string: "[['is_company', '=', true]]"
+                    - None: returns all records (default)
+                fields: Field selection options - can be:
                     - None (default): Returns smart selection of common fields
-                    - ["field1", "field2", ...]: Returns only specified fields
-                    - ["__all__"]: Returns ALL fields (warning: may cause serialization errors)
+                    - A list: ["field1", "field2", ...] - Returns only specified fields
+                    - A JSON string: '["field1", "field2"]' - Parsed to list
+                    - ["__all__"] or '["__all__"]': Returns ALL fields (warning: may cause serialization errors)
                 limit: Maximum number of records to return
                 offset: Number of records to skip
                 order: Sort order (e.g., 'name asc')
@@ -425,7 +430,7 @@ class OdooToolHandler:
     async def _handle_search_tool(
         self,
         model: str,
-        domain: Optional[List[Union[str, List[Any]]]],
+        domain: Optional[Union[str, List[Union[str, List[Any]]]]],
         fields: Optional[List[str]],
         limit: int,
         offset: int,
@@ -441,29 +446,92 @@ class OdooToolHandler:
                 if not self.connection.is_authenticated:
                     raise ValidationError("Not authenticated with Odoo")
 
+                # Handle domain parameter - can be string or list
+                parsed_domain = []
+                if domain is not None:
+                    if isinstance(domain, str):
+                        # Parse string to list
+                        try:
+                            # First try standard JSON parsing
+                            parsed_domain = json.loads(domain)
+                        except json.JSONDecodeError:
+                            # If that fails, try converting single quotes to double quotes
+                            # This handles Python-style domain strings
+                            try:
+                                # Replace single quotes with double quotes for valid JSON
+                                # But be careful not to replace quotes inside string values
+                                json_domain = domain.replace("'", '"')
+                                # Also need to ensure Python True/False are lowercase for JSON
+                                json_domain = json_domain.replace("True", "true").replace(
+                                    "False", "false"
+                                )
+                                parsed_domain = json.loads(json_domain)
+                            except json.JSONDecodeError as e:
+                                # If both attempts fail, try evaluating as Python literal
+                                try:
+                                    import ast
+
+                                    parsed_domain = ast.literal_eval(domain)
+                                except (ValueError, SyntaxError):
+                                    raise ValidationError(
+                                        f"Invalid domain parameter. Expected JSON array or Python list, got: {domain[:100]}..."
+                                    ) from e
+
+                        if not isinstance(parsed_domain, list):
+                            raise ValidationError(
+                                f"Domain must be a list, got {type(parsed_domain).__name__}"
+                            )
+                        logger.debug(f"Parsed domain from string: {parsed_domain}")
+                    else:
+                        # Already a list
+                        parsed_domain = domain
+
+                # Handle fields parameter - can be string or list
+                parsed_fields = fields
+                if fields is not None and isinstance(fields, str):
+                    # Parse string to list
+                    try:
+                        parsed_fields = json.loads(fields)
+                        if not isinstance(parsed_fields, list):
+                            raise ValidationError(
+                                f"Fields must be a list, got {type(parsed_fields).__name__}"
+                            )
+                    except json.JSONDecodeError:
+                        # Try Python literal eval as fallback
+                        try:
+                            import ast
+
+                            parsed_fields = ast.literal_eval(fields)
+                            if not isinstance(parsed_fields, list):
+                                raise ValidationError(
+                                    f"Fields must be a list, got {type(parsed_fields).__name__}"
+                                )
+                        except (ValueError, SyntaxError) as e:
+                            raise ValidationError(
+                                f"Invalid fields parameter. Expected JSON array or Python list, got: {fields[:100]}..."
+                            ) from e
+
                 # Set defaults
-                if domain is None:
-                    domain = []
                 if limit <= 0 or limit > self.config.max_limit:
                     limit = self.config.default_limit
 
                 # Get total count
-                total_count = self.connection.search_count(model, domain)
+                total_count = self.connection.search_count(model, parsed_domain)
 
                 # Search for records
                 record_ids = self.connection.search(
-                    model, domain, limit=limit, offset=offset, order=order
+                    model, parsed_domain, limit=limit, offset=offset, order=order
                 )
 
                 # Determine which fields to fetch
-                fields_to_fetch = fields
-                if fields is None:
+                fields_to_fetch = parsed_fields
+                if parsed_fields is None:
                     # Use smart field selection to avoid serialization issues
                     fields_to_fetch = self._get_smart_default_fields(model)
                     logger.debug(
                         f"Using smart defaults for {model} search: {len(fields_to_fetch) if fields_to_fetch else 'all'} fields"
                     )
-                elif fields == ["__all__"]:
+                elif parsed_fields == ["__all__"]:
                     # Explicit request for all fields
                     fields_to_fetch = None  # Odoo interprets None as all fields
                     logger.debug(f"Fetching all fields for {model} search")
