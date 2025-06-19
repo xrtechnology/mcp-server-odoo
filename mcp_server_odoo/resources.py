@@ -84,63 +84,27 @@ class OdooResourceHandler:
             """
             return await self._handle_record_retrieval(model, record_id)
 
-        # Register search resource
-        @self.app.resource(
-            "odoo://{model}/search?domain={domain}&fields={fields}&limit={limit}&offset={offset}&order={order}"
-        )
-        async def search_records(
-            model: str,
-            domain: Optional[str] = None,
-            fields: Optional[str] = None,
-            limit: Optional[str] = None,
-            offset: Optional[str] = None,
-            order: Optional[str] = None,
-        ) -> str:
-            """Search for records using domain filters.
+        # Register search resource (no parameters due to FastMCP limitations)
+        @self.app.resource("odoo://{model}/search")
+        async def search_records(model: str) -> str:
+            """Search records with default settings.
 
-            Args:
-                model: The Odoo model name (e.g., 'res.partner')
-                domain: URL-encoded domain filter (e.g., "[['is_company','=',true]]")
-                fields: Comma-separated list of fields to return
-                limit: Maximum number of records to return
-                offset: Number of records to skip (for pagination)
-                order: Sort order (e.g., "name asc, id desc")
-
-            Returns:
-                Formatted search results with pagination metadata
+            Returns first 10 records with all fields.
+            For more control, use the search_records tool instead.
             """
-            # Convert string parameters to proper types
-            limit_int = int(limit) if limit else None
-            offset_int = int(offset) if offset else None
-            return await self._handle_search(model, domain, fields, limit_int, offset_int, order)
+            return await self._handle_search(model, None, None, None, None, None)
 
-        # Register browse resource
-        @self.app.resource("odoo://{model}/browse?ids={ids}")
-        async def browse_records(model: str, ids: str) -> str:
-            """Retrieve multiple records by their IDs.
+        # Note: Browse resource removed due to FastMCP query parameter limitations
+        # Use get_record multiple times or search_records tool instead
 
-            Args:
-                model: The Odoo model name (e.g., 'res.partner')
-                ids: Comma-separated list of record IDs (e.g., "1,2,3,4")
+        # Register count resource (no parameters due to FastMCP limitations)
+        @self.app.resource("odoo://{model}/count")
+        async def count_records(model: str) -> str:
+            """Count all records in the model.
 
-            Returns:
-                Formatted multiple record data
+            For filtered counts, use the search_records tool with limit=0.
             """
-            return await self._handle_browse(model, ids)
-
-        # Register count resource
-        @self.app.resource("odoo://{model}/count?domain={domain}")
-        async def count_records(model: str, domain: Optional[str] = None) -> str:
-            """Count records matching a domain filter.
-
-            Args:
-                model: The Odoo model name (e.g., 'res.partner')
-                domain: URL-encoded domain filter (optional)
-
-            Returns:
-                Count of matching records
-            """
-            return await self._handle_count(model, domain)
+            return await self._handle_count(model, None)
 
         # Register fields resource
         @self.app.resource("odoo://{model}/fields")
