@@ -26,7 +26,7 @@ An MCP server that enables AI assistants like Claude to interact with Odoo ERP s
 
 - Python 3.10 or higher
 - Access to an Odoo instance (version 18.0)
-- The [Odoo MCP module](https://github.com/ivnvxd/mcp-server-odoo/tree/main/odoo-apps/mcp_server) installed on your Odoo server
+- The [Odoo MCP module](https://apps.odoo.com/apps/modules/18.0/mcp_server) installed on your Odoo server
 - An API key generated in Odoo (Settings > Users > API Keys)
 
 ### Install UV First
