@@ -712,34 +712,21 @@ class OdooToolHandler:
                 },
                 {
                     "uri_template": "odoo://{model}/search",
-                    "description": "Search records with optional filters",
+                    "description": "Basic search returning first 10 records",
                     "parameters": {
                         "model": "Odoo model name",
-                        "domain": "(Optional) URL-encoded domain filter",
-                        "fields": "(Optional) Comma-separated field names",
-                        "limit": "(Optional) Max records to return",
-                        "offset": "(Optional) Skip N records",
-                        "order": "(Optional) Sort order (e.g., 'name asc')",
                     },
-                    "example": "odoo://res.partner/search?limit=10&fields=name,email",
-                },
-                {
-                    "uri_template": "odoo://{model}/browse?ids={ids}",
-                    "description": "Get multiple records by their IDs",
-                    "parameters": {
-                        "model": "Odoo model name",
-                        "ids": "Comma-separated record IDs (e.g., 10,11,12)",
-                    },
-                    "example": "odoo://res.partner/browse?ids=10,11,12",
+                    "example": "odoo://res.partner/search",
+                    "note": "Query parameters are not supported. Use search_records tool for advanced queries.",
                 },
                 {
                     "uri_template": "odoo://{model}/count",
-                    "description": "Count records matching optional criteria",
+                    "description": "Count all records in a model",
                     "parameters": {
                         "model": "Odoo model name",
-                        "domain": "(Optional) URL-encoded domain filter",
                     },
-                    "example": "odoo://res.partner/count?domain=%5B%5B%22is_company%22%2C%22%3D%22%2Ctrue%5D%5D",
+                    "example": "odoo://res.partner/count",
+                    "note": "Query parameters are not supported. Use search_records tool for filtered counts.",
                 },
                 {
                     "uri_template": "odoo://{model}/fields",
@@ -754,7 +741,7 @@ class OdooToolHandler:
                 "templates": templates,
                 "enabled_models": model_names[:10],  # Show first 10 as examples
                 "total_models": len(model_names),
-                "note": "Replace {model} with any enabled model name and {record_id}/{ids} with actual IDs",
+                "note": "Resource URIs do not support query parameters. Use tools (search_records, get_record) for advanced operations with filtering, pagination, and field selection.",
             }
 
         except Exception as e:
