@@ -783,9 +783,14 @@ class OdooToolHandler:
                 # Process dates in the minimal record
                 record = self._process_record_dates(records[0], model)
 
+                # Generate direct URL to the record in Odoo
+                base_url = self.config.url.rstrip("/")
+                record_url = f"{base_url}/web#id={record_id}&model={model}&view_type=form"
+
                 return {
                     "success": True,
                     "record": record,
+                    "url": record_url,
                     "message": f"Successfully created {model} record with ID {record_id}",
                 }
 
@@ -841,9 +846,14 @@ class OdooToolHandler:
                 # Process dates in the minimal record
                 record = self._process_record_dates(records[0], model)
 
+                # Generate direct URL to the record in Odoo
+                base_url = self.config.url.rstrip("/")
+                record_url = f"{base_url}/web#id={record_id}&model={model}&view_type=form"
+
                 return {
                     "success": success,
                     "record": record,
+                    "url": record_url,
                     "message": f"Successfully updated {model} record with ID {record_id}",
                 }
 

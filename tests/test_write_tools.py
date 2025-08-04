@@ -39,6 +39,7 @@ class TestWriteTools:
         config = Mock()
         config.default_limit = 10
         config.max_limit = 100
+        config.url = "http://localhost:8069"
         return config
 
     @pytest.fixture
@@ -68,6 +69,10 @@ class TestWriteTools:
         # Verify
         assert result["success"] is True
         assert result["record"] == essential_record
+        assert (
+            result["url"]
+            == f"http://localhost:8069/web#id={created_id}&model={model}&view_type=form"
+        )
         assert "Successfully created" in result["message"]
         mock_connection.create.assert_called_once_with(model, values)
         mock_connection.read.assert_called_once_with(
@@ -111,6 +116,10 @@ class TestWriteTools:
         # Verify
         assert result["success"] is True
         assert result["record"] == updated_record
+        assert (
+            result["url"]
+            == f"http://localhost:8069/web#id={record_id}&model={model}&view_type=form"
+        )
         assert "Successfully updated" in result["message"]
         mock_connection.write.assert_called_once_with(model, [record_id], values)
         # Verify both read calls with correct parameters

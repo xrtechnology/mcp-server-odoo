@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.2] - 2025-08-04
 
+### Added
+- **Direct Record URLs**: Added `url` field to `create_record` and `update_record` responses for direct access to records in Odoo
+
 ### Changed
 - **Minimal Response Fields**: Reduced `create_record` and `update_record` tool responses to return only essential fields (id, name, display_name) to minimize LLM context usage
 
