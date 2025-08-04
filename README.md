@@ -28,9 +28,9 @@ An MCP server that enables AI assistants like Claude to interact with Odoo ERP s
 ### Prerequisites
 
 - Python 3.10 or higher
-- Access to an Odoo instance (version 18.0)
+- Access to an Odoo instance (version 17.0+)
 - The [Odoo MCP module](https://apps.odoo.com/apps/modules/18.0/mcp_server) installed on your Odoo server
-- An API key generated in Odoo (Settings > Users > API Keys)
+- (optional) An API key generated in Odoo (Settings > Users > API Keys)
 
 ### Install UV First
 
@@ -57,6 +57,21 @@ After installation, restart your terminal to ensure UV is in your PATH.
 ### Installing via MCP Settings (Recommended)
 
 Add this configuration to your MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "odoo": {
+      "command": "uvx",
+      "args": ["mcp-server-odoo"],
+      "env": {
+        "ODOO_URL": "https://your-odoo-instance.com",
+        "ODOO_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
 
 <details>
 <summary>Claude Desktop</summary>
@@ -232,7 +247,8 @@ The HTTP endpoint will be available at: `http://localhost:8000/mcp/`
 | `ODOO_MCP_HOST` / `--host` | Host to bind for HTTP transports | `localhost` |
 | `ODOO_MCP_PORT` / `--port` | Port to bind for HTTP transports | `8000` |
 
-**Example: Running streamable-http transport for remote access**
+<details>
+<summary>Running streamable-http transport for remote access</summary>
 
 ```json
 {
@@ -249,11 +265,12 @@ The HTTP endpoint will be available at: `http://localhost:8000/mcp/`
   }
 }
 ```
+</details>
 
 ### Setting up Odoo
 
 1. **Install the MCP module**:
-   - Download the [mcp_server module](https://github.com/ivnvxd/mcp-server-odoo/tree/main/odoo-apps/mcp_server)
+   - Download the [mcp_server](https://apps.odoo.com/apps/modules/18.0/mcp_server) module
    - Install it in your Odoo instance
    - Navigate to Settings > MCP Server
 
@@ -467,6 +484,26 @@ Example configuration:
 }
 ```
 Note: `ODOO_DB` is required if database listing is restricted on your server.
+</details>
+
+<details>
+<summary>"SSL: CERTIFICATE_VERIFY_FAILED" Error</summary>
+
+This error occurs when Python cannot verify SSL certificates, often on macOS or corporate networks.
+
+**Solution**: Add SSL certificate path to your environment configuration:
+
+```json
+{
+  "env": {
+    "ODOO_URL": "https://your-odoo.com",
+    "ODOO_API_KEY": "your-key",
+    "SSL_CERT_FILE": "/etc/ssl/cert.pem"
+  }
+}
+```
+
+This tells Python where to find the system's SSL certificate bundle for HTTPS connections. The path `/etc/ssl/cert.pem` is the standard location on most systems.
 </details>
 
 <details>
