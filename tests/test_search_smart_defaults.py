@@ -19,6 +19,7 @@ class TestSearchSmartDefaults:
         config = Mock()
         config.default_limit = 10
         config.max_limit = 100
+        config.max_smart_fields = 15
 
         return OdooToolHandler(app, connection, access_controller, config)
 

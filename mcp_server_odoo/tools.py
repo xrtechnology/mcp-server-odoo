@@ -216,8 +216,114 @@ class OdooToolHandler:
 
         return False
 
+    def _score_field_importance(self, field_name: str, field_info: Dict[str, Any]) -> int:
+        """Score field importance for smart default selection.
+
+        Args:
+            field_name: Name of the field
+            field_info: Field metadata from fields_get()
+
+        Returns:
+            Importance score (higher = more important)
+        """
+        # Tier 1: Essential fields (always included)
+        if field_name in {"id", "name", "display_name", "active"}:
+            return 1000
+
+        # Exclude system/technical fields by prefix
+        exclude_prefixes = ("_", "message_", "activity_", "website_message_")
+        if field_name.startswith(exclude_prefixes):
+            return 0
+
+        # Exclude specific technical fields
+        exclude_fields = {
+            "write_date",
+            "create_date",
+            "write_uid",
+            "create_uid",
+            "__last_update",
+            "access_token",
+            "access_warning",
+            "access_url",
+        }
+        if field_name in exclude_fields:
+            return 0
+
+        score = 0
+
+        # Tier 2: Required fields are very important
+        if field_info.get("required"):
+            score += 500
+
+        # Tier 3: Field type importance
+        field_type = field_info.get("type", "")
+        type_scores = {
+            "char": 200,
+            "boolean": 180,
+            "selection": 170,
+            "integer": 160,
+            "float": 160,
+            "monetary": 140,
+            "date": 150,
+            "datetime": 150,
+            "many2one": 120,  # Relations useful but not primary
+            "text": 80,
+            "one2many": 40,
+            "many2many": 40,  # Heavy relations
+            "binary": 10,
+            "html": 10,
+            "image": 10,  # Heavy content
+        }
+        score += type_scores.get(field_type, 50)
+
+        # Tier 4: Storage and searchability bonuses
+        if field_info.get("store", True):
+            score += 80
+        if field_info.get("searchable", True):
+            score += 40
+
+        # Tier 5: Business-relevant field patterns (bonus)
+        business_patterns = [
+            "state",
+            "status",
+            "stage",
+            "priority",
+            "company",
+            "currency",
+            "amount",
+            "total",
+            "date",
+            "user",
+            "partner",
+            "email",
+            "phone",
+            "address",
+            "street",
+            "city",
+            "country",
+            "code",
+            "ref",
+            "number",
+        ]
+        if any(pattern in field_name.lower() for pattern in business_patterns):
+            score += 60
+
+        # Exclude expensive computed fields (non-stored)
+        if field_info.get("compute") and not field_info.get("store", True):
+            score = min(score, 30)  # Cap computed fields at low score
+
+        # Exclude large field types completely
+        if field_type in ("binary", "image", "html"):
+            return 0
+
+        # Exclude one2many and many2many fields (can be large)
+        if field_type in ("one2many", "many2many"):
+            return 0
+
+        return max(score, 0)
+
     def _get_smart_default_fields(self, model: str) -> Optional[List[str]]:
-        """Get smart default fields for a model.
+        """Get smart default fields for a model using field importance scoring.
 
         Args:
             model: The Odoo model name
@@ -229,26 +335,41 @@ class OdooToolHandler:
             # Get all field definitions
             fields_info = self.connection.fields_get(model)
 
-            # Apply smart filtering
-            default_fields = [
-                field_name
-                for field_name, field_info in fields_info.items()
-                if self._should_include_field_by_default(field_name, field_info)
-            ]
+            # Score all fields by importance
+            field_scores = []
+            for field_name, field_info in fields_info.items():
+                score = self._score_field_importance(field_name, field_info)
+                if score > 0:  # Only include fields with positive scores
+                    field_scores.append((field_name, score))
 
-            # Ensure we have at least some fields
-            if not default_fields:
-                default_fields = ["id", "name", "display_name"]
+            # Sort by score (highest first)
+            field_scores.sort(key=lambda x: x[1], reverse=True)
 
-            # Sort fields for consistent output
-            # Priority order: id, name, display_name, then alphabetical
-            priority_fields = ["id", "name", "display_name", "active"]
-            other_fields = sorted(f for f in default_fields if f not in priority_fields)
+            # Select top N fields based on configuration
+            max_fields = self.config.max_smart_fields
+            selected_fields = [field_name for field_name, _ in field_scores[:max_fields]]
 
-            final_fields = [f for f in priority_fields if f in default_fields] + other_fields
+            # Ensure essential fields are always included
+            essential_fields = ["id", "name", "display_name", "active"]
+            for field in essential_fields:
+                if field in fields_info and field not in selected_fields:
+                    selected_fields.append(field)
+
+            # Remove duplicates while preserving order
+            final_fields = []
+            seen = set()
+            for field in selected_fields:
+                if field not in seen:
+                    final_fields.append(field)
+                    seen.add(field)
+
+            # Ensure we have at least essential fields
+            if not final_fields:
+                final_fields = [f for f in essential_fields if f in fields_info]
 
             logger.debug(
-                f"Smart default fields for {model}: {len(final_fields)} of {len(fields_info)} fields"
+                f"Smart default fields for {model}: {len(final_fields)} of {len(fields_info)} fields "
+                f"(max configured: {max_fields})"
             )
             return final_fields
 

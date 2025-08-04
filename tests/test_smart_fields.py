@@ -19,74 +19,69 @@ class TestSmartFieldSelection:
         config = Mock()
         config.default_limit = 10
         config.max_limit = 100
+        config.max_smart_fields = 15
 
         return OdooToolHandler(app, connection, access_controller, config)
 
-    def test_should_include_field_always_include(self, tool_handler):
-        """Test that essential fields are always included."""
-        # Essential fields should always be included
-        assert tool_handler._should_include_field_by_default("id", {}) is True
-        assert tool_handler._should_include_field_by_default("name", {}) is True
-        assert tool_handler._should_include_field_by_default("display_name", {}) is True
-        assert tool_handler._should_include_field_by_default("active", {}) is True
+    def test_score_field_importance_essential_fields(self, tool_handler):
+        """Test that essential fields get highest scores."""
+        # Essential fields should get 1000+ points
+        assert tool_handler._score_field_importance("id", {}) >= 1000
+        assert tool_handler._score_field_importance("name", {}) >= 1000
+        assert tool_handler._score_field_importance("display_name", {}) >= 1000
+        assert tool_handler._score_field_importance("active", {}) >= 1000
 
-    def test_should_include_field_exclude_technical(self, tool_handler):
-        """Test that technical fields are excluded."""
-        # Fields with technical prefixes should be excluded
-        assert tool_handler._should_include_field_by_default("_order", {}) is False
-        assert tool_handler._should_include_field_by_default("message_follower_ids", {}) is False
-        assert tool_handler._should_include_field_by_default("activity_ids", {}) is False
-        assert tool_handler._should_include_field_by_default("website_message_ids", {}) is False
+    def test_score_field_importance_technical_fields(self, tool_handler):
+        """Test that technical fields get low scores."""
+        # Fields with technical prefixes should get 0 points
+        assert tool_handler._score_field_importance("_order", {}) == 0
+        assert tool_handler._score_field_importance("message_follower_ids", {}) == 0
+        assert tool_handler._score_field_importance("activity_ids", {}) == 0
+        assert tool_handler._score_field_importance("website_message_ids", {}) == 0
 
-        # Specific technical fields should be excluded
-        assert tool_handler._should_include_field_by_default("write_date", {}) is False
-        assert tool_handler._should_include_field_by_default("create_date", {}) is False
-        assert tool_handler._should_include_field_by_default("__last_update", {}) is False
+        # Specific technical fields should get 0 points
+        assert tool_handler._score_field_importance("write_date", {}) == 0
+        assert tool_handler._score_field_importance("create_date", {}) == 0
+        assert tool_handler._score_field_importance("__last_update", {}) == 0
 
-    def test_should_include_field_exclude_binary(self, tool_handler):
-        """Test that binary and large fields are excluded."""
-        assert tool_handler._should_include_field_by_default("image", {"type": "binary"}) is False
-        assert tool_handler._should_include_field_by_default("photo", {"type": "image"}) is False
-        assert (
-            tool_handler._should_include_field_by_default("description_html", {"type": "html"})
-            is False
-        )
+    def test_score_field_importance_binary_fields(self, tool_handler):
+        """Test that binary and large fields get low scores."""
+        assert tool_handler._score_field_importance("image", {"type": "binary"}) == 0
+        assert tool_handler._score_field_importance("photo", {"type": "image"}) == 0
+        assert tool_handler._score_field_importance("description_html", {"type": "html"}) == 0
 
-    def test_should_include_field_exclude_computed_nonstored(self, tool_handler):
-        """Test that expensive computed fields are excluded."""
-        # Computed non-stored field should be excluded
+    def test_score_field_importance_computed_fields(self, tool_handler):
+        """Test scoring of computed fields."""
+        # Computed non-stored field should be capped at 30 points
         field_info = {"type": "char", "compute": "some_method", "store": False}
-        assert tool_handler._should_include_field_by_default("computed_field", field_info) is False
+        score = tool_handler._score_field_importance("computed_field", field_info)
+        assert score == 30  # Capped by line 313 in scoring logic
 
-        # Computed stored field should be included
+        # Computed stored field should get full score
         field_info = {"type": "char", "compute": "some_method", "store": True, "searchable": True}
-        assert tool_handler._should_include_field_by_default("computed_field", field_info) is True
+        score = tool_handler._score_field_importance("computed_field", field_info)
+        assert score > 30  # Should get base type score + storage + searchability bonuses
 
-    def test_should_include_field_exclude_relations(self, tool_handler):
-        """Test that one2many and many2many fields are excluded."""
-        assert (
-            tool_handler._should_include_field_by_default("child_ids", {"type": "one2many"})
-            is False
-        )
-        assert (
-            tool_handler._should_include_field_by_default("tag_ids", {"type": "many2many"}) is False
-        )
+    def test_score_field_importance_relation_fields(self, tool_handler):
+        """Test scoring of relation fields."""
+        # One2many and many2many should get 0 points
+        assert tool_handler._score_field_importance("child_ids", {"type": "one2many"}) == 0
+        assert tool_handler._score_field_importance("tag_ids", {"type": "many2many"}) == 0
 
-        # Many2one should be included
-        assert (
-            tool_handler._should_include_field_by_default(
-                "partner_id", {"type": "many2one", "store": True, "searchable": True}
-            )
-            is True
+        # Many2one should get reasonable score
+        score = tool_handler._score_field_importance(
+            "partner_id", {"type": "many2one", "store": True, "searchable": True}
         )
+        assert score > 0  # Should get base type score + bonuses
 
-    def test_should_include_field_required(self, tool_handler):
-        """Test that required fields are included."""
+    def test_score_field_importance_required_fields(self, tool_handler):
+        """Test that required fields get high scores."""
         field_info = {"type": "char", "required": True}
-        assert tool_handler._should_include_field_by_default("required_field", field_info) is True
+        score = tool_handler._score_field_importance("required_field", field_info)
+        assert score >= 500  # Should get required field bonus (500 points)
 
-    def test_should_include_field_simple_stored(self, tool_handler):
-        """Test that simple stored searchable fields are included."""
+    def test_score_field_importance_simple_stored_fields(self, tool_handler):
+        """Test scoring of simple stored searchable fields."""
         simple_types = [
             "char",
             "text",
@@ -101,14 +96,16 @@ class TestSmartFieldSelection:
 
         for field_type in simple_types:
             field_info = {"type": field_type, "store": True, "searchable": True}
-            assert (
-                tool_handler._should_include_field_by_default(f"test_{field_type}", field_info)
-                is True
-            )
+            score = tool_handler._score_field_importance(f"test_{field_type}", field_info)
+            assert score > 0  # Should get positive score
 
-        # Non-searchable stored field should not be included
+        # Non-searchable stored field should get lower score
         field_info = {"type": "char", "store": True, "searchable": False}
-        assert tool_handler._should_include_field_by_default("non_searchable", field_info) is False
+        score = tool_handler._score_field_importance("non_searchable", field_info)
+        searchable_score = tool_handler._score_field_importance(
+            "searchable", {"type": "char", "store": True, "searchable": True}
+        )
+        assert score < searchable_score  # Should be lower than searchable equivalent
 
     def test_get_smart_default_fields_success(self, tool_handler):
         """Test successful smart field selection."""
@@ -157,9 +154,12 @@ class TestSmartFieldSelection:
         assert result is None
 
     def test_get_smart_default_fields_empty_result(self, tool_handler):
-        """Test handling of models with no suitable fields."""
-        # Mock fields_get with all excluded fields
+        """Test handling of models with some essential fields but mostly excluded fields."""
+        # Mock fields_get with essential fields + zero-score fields
         mock_fields = {
+            "id": {"type": "integer"},
+            "name": {"type": "char", "required": True},
+            "display_name": {"type": "char"},
             "_order": {"type": "char"},
             "message_ids": {"type": "one2many"},
             "activity_ids": {"type": "one2many"},
@@ -169,8 +169,10 @@ class TestSmartFieldSelection:
 
         result = tool_handler._get_smart_default_fields("weird.model")
 
-        # Should return minimal default fields
-        assert result == ["id", "name", "display_name"]
+        # Should return essential fields only (since others score 0)
+        # Expected order by score: name (1000+500+200+80+40=1820), display_name (1000+200+80+40=1320), id (1000+160+80+40=1280)
+        assert set(result) == {"id", "name", "display_name"}
+        assert len(result) == 3
 
     @pytest.mark.asyncio
     async def test_get_record_with_smart_defaults(self, tool_handler):
@@ -181,12 +183,18 @@ class TestSmartFieldSelection:
             "id": {"type": "integer"},
             "name": {"type": "char", "required": True},
             "email": {"type": "char", "store": True, "searchable": True},
-            "message_ids": {"type": "one2many"},
-            "image_1920": {"type": "binary"},
+            "active": {"type": "boolean"},
+            "display_name": {"type": "char"},
         }
 
         tool_handler.connection.read.return_value = [
-            {"id": 1, "name": "Test Partner", "email": "test@example.com"}
+            {
+                "id": 1,
+                "name": "Test Partner",
+                "email": "test@example.com",
+                "active": True,
+                "display_name": "Test Partner",
+            }
         ]
 
         # Call without fields parameter
@@ -196,11 +204,13 @@ class TestSmartFieldSelection:
         assert result["id"] == 1
         assert result["name"] == "Test Partner"
         assert result["email"] == "test@example.com"
+        assert result["active"]
+        assert result["display_name"] == "Test Partner"
 
         # Should have metadata
         assert "_metadata" in result
         assert result["_metadata"]["field_selection_method"] == "smart_defaults"
-        assert result["_metadata"]["fields_returned"] == 3  # id, name, email
+        assert result["_metadata"]["fields_returned"] == 5  # all 5 fields (less than limit)
         assert result["_metadata"]["total_fields_available"] == 5
         assert "Limited fields returned" in result["_metadata"]["note"]
 
@@ -209,7 +219,9 @@ class TestSmartFieldSelection:
         call_args = tool_handler.connection.read.call_args
         assert call_args[0][0] == "res.partner"  # model
         assert call_args[0][1] == [1]  # record_id
-        assert set(call_args[0][2]) == {"id", "name", "email"}  # smart fields
+        # With 5 fields, all should be returned (less than max_smart_fields=15)
+        expected_fields = {"id", "name", "email", "active", "display_name"}
+        assert set(call_args[0][2]) == expected_fields
 
     @pytest.mark.asyncio
     async def test_get_record_with_all_fields(self, tool_handler):
@@ -273,12 +285,19 @@ class TestSmartFieldSelection:
 
         result = tool_handler._get_smart_default_fields("res.partner")
 
-        # Priority fields should come first in order
-        assert result[0] == "id"
-        assert result[1] == "name"
-        assert result[2] == "display_name"
-        assert result[3] == "active"
+        # All fields should be returned since we have only 7 fields (less than limit of 15)
+        assert len(result) == 7
 
-        # Other fields should be alphabetical
-        other_fields = result[4:]
-        assert other_fields == sorted(other_fields)
+        # Verify that essential fields are included
+        essential_fields = ["id", "name", "display_name", "active"]
+        for field in essential_fields:
+            assert field in result
+
+        # Verify that business fields are included
+        assert "email" in result  # Has business pattern bonus
+        assert "city" in result
+        assert "zip" in result
+
+        # The exact order depends on the scoring algorithm and essential field processing
+        # Just verify the expected fields are present in correct quantity
+        assert set(result) == {"active", "name", "display_name", "id", "email", "city", "zip"}
