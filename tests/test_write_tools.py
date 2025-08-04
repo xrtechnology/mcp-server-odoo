@@ -1,6 +1,6 @@
 """Tests for write operation tools."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -53,20 +53,26 @@ class TestWriteTools:
         model = "res.partner"
         values = {"name": "Test Partner", "email": "test@example.com"}
         created_id = 123
-        created_record = {"id": created_id, "name": "Test Partner", "email": "test@example.com"}
+        essential_record = {
+            "id": created_id,
+            "name": "Test Partner",
+            "display_name": "Test Partner",
+        }
 
         mock_connection.create.return_value = created_id
-        mock_connection.read.return_value = [created_record]
+        mock_connection.read.return_value = [essential_record]
 
         # Execute
         result = await tool_handler._handle_create_record_tool(model, values)
 
         # Verify
         assert result["success"] is True
-        assert result["record"] == created_record
+        assert result["record"] == essential_record
         assert "Successfully created" in result["message"]
         mock_connection.create.assert_called_once_with(model, values)
-        mock_connection.read.assert_called_once_with(model, [created_id])
+        mock_connection.read.assert_called_once_with(
+            model, [created_id], ["id", "name", "display_name"]
+        )
 
     @pytest.mark.asyncio
     async def test_create_record_no_values(self, tool_handler):
@@ -91,8 +97,10 @@ class TestWriteTools:
         model = "res.partner"
         record_id = 123
         values = {"email": "updated@example.com"}
-        existing_record = {"id": record_id, "name": "Test Partner", "email": "old@example.com"}
-        updated_record = {"id": record_id, "name": "Test Partner", "email": "updated@example.com"}
+        # First read call (existence check) returns just ID
+        existing_record = {"id": record_id}
+        # Second read call returns essential fields
+        updated_record = {"id": record_id, "name": "Test Partner", "display_name": "Test Partner"}
 
         mock_connection.read.side_effect = [[existing_record], [updated_record]]
         mock_connection.write.return_value = True
@@ -105,6 +113,12 @@ class TestWriteTools:
         assert result["record"] == updated_record
         assert "Successfully updated" in result["message"]
         mock_connection.write.assert_called_once_with(model, [record_id], values)
+        # Verify both read calls with correct parameters
+        expected_calls = [
+            call(model, [record_id], ["id"]),  # Existence check
+            call(model, [record_id], ["id", "name", "display_name"]),  # Essential fields
+        ]
+        mock_connection.read.assert_has_calls(expected_calls)
 
     @pytest.mark.asyncio
     async def test_update_record_not_found(self, tool_handler, mock_connection):

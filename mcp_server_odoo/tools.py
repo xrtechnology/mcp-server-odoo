@@ -771,14 +771,21 @@ class OdooToolHandler:
                 # Create the record
                 record_id = self.connection.create(model, values)
 
-                # Read the created record to return full details
-                records = self.connection.read(model, [record_id])
+                # Return only essential fields to minimize context usage
+                # Users can use get_record if they need more fields
+                essential_fields = ["id", "name", "display_name"]
+
+                # Read only the essential fields
+                records = self.connection.read(model, [record_id], essential_fields)
                 if not records:
                     raise ToolError(f"Failed to read created record: {model} with ID {record_id}")
 
+                # Process dates in the minimal record
+                record = self._process_record_dates(records[0], model)
+
                 return {
                     "success": True,
-                    "record": records[0],
+                    "record": record,
                     "message": f"Successfully created {model} record with ID {record_id}",
                 }
 
@@ -814,22 +821,29 @@ class OdooToolHandler:
                 if not values:
                     raise ValidationError("No values provided for record update")
 
-                # Check if record exists
-                existing = self.connection.read(model, [record_id])
+                # Check if record exists (only fetch ID to verify existence)
+                existing = self.connection.read(model, [record_id], ["id"])
                 if not existing:
                     raise NotFoundError(f"Record not found: {model} with ID {record_id}")
 
                 # Update the record
                 success = self.connection.write(model, [record_id], values)
 
-                # Read the updated record to return full details
-                records = self.connection.read(model, [record_id])
+                # Return only essential fields to minimize context usage
+                # Users can use get_record if they need more fields
+                essential_fields = ["id", "name", "display_name"]
+
+                # Read only the essential fields
+                records = self.connection.read(model, [record_id], essential_fields)
                 if not records:
                     raise ToolError(f"Failed to read updated record: {model} with ID {record_id}")
 
+                # Process dates in the minimal record
+                record = self._process_record_dates(records[0], model)
+
                 return {
                     "success": success,
-                    "record": records[0],
+                    "record": record,
                     "message": f"Successfully updated {model} record with ID {record_id}",
                 }
 
