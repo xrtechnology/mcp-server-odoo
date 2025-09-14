@@ -1,0 +1,1 @@
+mcp-server-odoo>=0.1.0
