@@ -129,10 +129,9 @@ class OdooClient:
             return {'error': str(e)}
 
 class MCPServer:
-    """MCP Server with HTTP transport"""
+    """MCP Server with HTTP transport - Multi-tenant version"""
 
-    def __init__(self, odoo_client: OdooClient):
-        self.odoo_client = odoo_client
+    def __init__(self):
         self.app = web.Application()
         self.setup_routes()
 
@@ -146,9 +145,10 @@ class MCPServer:
         """Health check endpoint"""
         return web.json_response({
             'status': 'healthy',
-            'service': 'mcp-server-odoo',
+            'service': 'mcp-server-odoo-multi-tenant',
             'timestamp': datetime.now().isoformat(),
-            'odoo_url': self.odoo_client.url
+            'mode': 'multi-tenant',
+            'info': 'Send Odoo credentials via headers: X-Odoo-URL, X-Odoo-API-Key, X-Odoo-DB'
         })
 
     async def get_server_info(self, request):
@@ -217,38 +217,56 @@ class MCPServer:
             tool = data.get('tool')
             params = data.get('parameters', {})
 
-            # Route to appropriate handler
+            # Get client credentials from request headers
+            odoo_url = request.headers.get('X-Odoo-URL')
+            odoo_api_key = request.headers.get('X-Odoo-API-Key')
+            odoo_db = request.headers.get('X-Odoo-DB')
+
+            if not odoo_url or not odoo_api_key:
+                return web.json_response(
+                    {'error': 'Missing Odoo credentials in headers'},
+                    status=401
+                )
+
+            # Create client-specific Odoo connection
+            client_odoo = OdooClient(
+                url=odoo_url,
+                api_key=odoo_api_key,
+                db=odoo_db
+            )
+
+            # Route to appropriate handler using client-specific connection
             if tool == 'search_records':
-                result = self.odoo_client.search_records(
+                result = client_odoo.search_records(
                     model=params.get('model'),
                     domain=params.get('domain'),
                     fields=params.get('fields'),
                     limit=params.get('limit', 100)
                 )
             elif tool == 'get_record':
-                result = self.odoo_client.get_record(
+                result = client_odoo.get_record(
                     model=params.get('model'),
                     record_id=params.get('record_id'),
                     fields=params.get('fields')
                 )
             elif tool == 'create_record':
-                result = self.odoo_client.create_record(
+                result = client_odoo.create_record(
                     model=params.get('model'),
                     values=params.get('values')
                 )
             elif tool == 'update_record':
-                result = self.odoo_client.update_record(
+                result = client_odoo.update_record(
                     model=params.get('model'),
                     record_id=params.get('record_id'),
                     values=params.get('values')
                 )
             elif tool == 'delete_record':
-                result = self.odoo_client.delete_record(
+                result = client_odoo.delete_record(
                     model=params.get('model'),
                     record_id=params.get('record_id')
                 )
             elif tool == 'list_models':
-                result = self.odoo_client.list_models()
+                result = client_odoo.list_models()
             else:
                 return web.json_response(
                     {'error': f'Unknown tool: {tool}'},
@@ -266,33 +284,33 @@ class MCPServer:
 
     def run(self, host='0.0.0.0', port=8080):
         """Run the MCP server"""
-        logger.info(f"Starting MCP Server on http://{host}:{port}")
-        logger.info(f"Connected to Odoo at: {self.odoo_client.url}")
+        logger.info(f"Starting Multi-Tenant MCP Server on http://{host}:{port}")
+        logger.info("Mode: Multi-tenant - Each client sends their own Odoo credentials")
         logger.info(f"Health check: http://{host}:{port}/health")
         logger.info(f"MCP endpoint: http://{host}:{port}/mcp")
+        logger.info("Required headers: X-Odoo-URL, X-Odoo-API-Key, X-Odoo-DB (optional)")
         web.run_app(self.app, host=host, port=port)
 
 def main():
-    """Main entry point"""
-    # Get configuration from environment
-    odoo_url = os.environ.get('ODOO_URL', 'http://localhost:8073')
-    odoo_api_key = os.environ.get('ODOO_API_KEY', '')
-    odoo_db = os.environ.get('ODOO_DB', '')
+    """Main entry point - Multi-tenant mode"""
+    # Get port from environment
     port = int(os.environ.get('PORT', '8080'))
 
-    # Validate configuration
-    if not odoo_api_key:
-        logger.warning("ODOO_API_KEY not set - API calls may fail")
+    # Log startup info
+    logger.info("===========================================")
+    logger.info("MCP Server for Odoo - Multi-Tenant Mode")
+    logger.info("===========================================")
+    logger.info("This server acts as a bridge between Claude and multiple Odoo instances.")
+    logger.info("Each client must send their own Odoo credentials via headers.")
+    logger.info("")
+    logger.info("Required headers for each request:")
+    logger.info("  X-Odoo-URL: Your Odoo instance URL")
+    logger.info("  X-Odoo-API-Key: Your Odoo API key")
+    logger.info("  X-Odoo-DB: Your database name (optional)")
+    logger.info("===========================================")
 
-    # Create Odoo client
-    odoo_client = OdooClient(
-        url=odoo_url,
-        api_key=odoo_api_key,
-        db=odoo_db if odoo_db else None
-    )
-
-    # Create and run MCP server
-    server = MCPServer(odoo_client)
+    # Create and run MCP server (no Odoo client needed)
+    server = MCPServer()
     server.run(host='0.0.0.0', port=port)
 
 if __name__ == '__main__':

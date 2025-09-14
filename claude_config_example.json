@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "odoo-bridge": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/client-http",
+        "https://odoo-mcp-doonet.ondigitalocean.app/mcp"
+      ],
+      "env": {
+        "ODOO_URL": "https://TU-INSTANCIA.odoo.com",
+        "ODOO_API_KEY": "TU-API-KEY-PERSONAL",
+        "ODOO_DB": "TU-BASE-DATOS"
+      }
+    }
+  }
+}
