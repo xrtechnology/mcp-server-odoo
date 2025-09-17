@@ -48,6 +48,11 @@ $RECYCLE.BIN/
 .env.test.local
 .env.production.local
 
+# Configuration files with credentials
+claude_desktop_config.json
+claude_desktop_config_complete.json
+*_config_with_keys.json
+
 # Compiled source
 *.com
 *.class

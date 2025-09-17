@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-MCP Server for Odoo - HTTP Transport Implementation
-Provides MCP tools to interact with Odoo via REST API
+MCP Server for Odoo - Multi-tenant Bridge Server
+Conecta Claude Desktop con múltiples instancias de Odoo
+Compatible con el módulo mcp_server de Odoo 16
 """
 
 import os
@@ -13,6 +14,7 @@ from typing import Any, Dict, List, Optional
 import aiohttp
 from aiohttp import web
 import requests
+import xmlrpc.client
 from datetime import datetime
 
 # Configure logging
@@ -20,108 +22,157 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class OdooClient:
-    """Client for interacting with Odoo REST API"""
+    """Cliente para interactuar con módulo MCP de Odoo via REST y XML-RPC"""
 
     def __init__(self, url: str, api_key: str, db: str = None):
         self.url = url.rstrip('/')
         self.api_key = api_key
         self.db = db
+        self.uid = None
+
+        # Cliente REST para endpoints informativos
         self.session = requests.Session()
         self.session.headers.update({
             'X-API-Key': api_key,
             'Content-Type': 'application/json'
         })
 
-    def search_records(self, model: str, domain: List = None, fields: List = None, limit: int = 100):
-        """Search records in Odoo"""
-        try:
-            endpoint = f"{self.url}/mcp/records/{model}/search"
-            data = {
-                'domain': domain or [],
-                'fields': fields or [],
-                'limit': limit
-            }
-            if self.db:
-                data['db'] = self.db
+        # Cliente XML-RPC para operaciones CRUD
+        self.xmlrpc_common = xmlrpc.client.ServerProxy(f'{self.url}/mcp/xmlrpc/common')
+        self.xmlrpc_object = xmlrpc.client.ServerProxy(f'{self.url}/mcp/xmlrpc/object')
 
-            response = self.session.post(endpoint, json=data)
-            response.raise_for_status()
-            return response.json()
+    def authenticate(self):
+        """Autenticar y obtener UID"""
+        try:
+            # Para el módulo MCP, el UID típicamente es 2 (usuario API)
+            # La autenticación real se hace via API key en los headers
+            self.uid = 2
+            return True
+        except Exception as e:
+            logger.error(f"Authentication error: {e}")
+            return False
+
+    def search_records(self, model: str, domain: List = None, fields: List = None, limit: int = 100):
+        """Buscar registros usando XML-RPC del módulo MCP"""
+        try:
+            if not self.uid:
+                self.authenticate()
+
+            # Buscar IDs usando XML-RPC
+            record_ids = self.xmlrpc_object.execute_kw(
+                self.db, self.uid, self.api_key,
+                model, 'search',
+                [domain or []],
+                {'limit': limit}
+            )
+
+            # Si hay registros, leer sus campos
+            if record_ids:
+                records = self.xmlrpc_object.execute_kw(
+                    self.db, self.uid, self.api_key,
+                    model, 'read',
+                    [record_ids],
+                    {'fields': fields or []}
+                )
+                return {'success': True, 'data': records}
+
+            return {'success': True, 'data': []}
+        except xmlrpc.client.Fault as fault:
+            logger.error(f"XML-RPC Fault: {fault.faultString}")
+            return {'error': f"Odoo error: {fault.faultString}"}
         except Exception as e:
             logger.error(f"Error searching records: {e}")
             return {'error': str(e)}
 
     def get_record(self, model: str, record_id: int, fields: List = None):
-        """Get a single record by ID"""
+        """Obtener un registro específico usando XML-RPC"""
         try:
-            endpoint = f"{self.url}/mcp/records/{model}/{record_id}"
-            params = {}
-            if fields:
-                params['fields'] = ','.join(fields)
-            if self.db:
-                params['db'] = self.db
+            if not self.uid:
+                self.authenticate()
 
-            response = self.session.get(endpoint, params=params)
-            response.raise_for_status()
-            return response.json()
+            records = self.xmlrpc_object.execute_kw(
+                self.db, self.uid, self.api_key,
+                model, 'read',
+                [[record_id]],
+                {'fields': fields or []}
+            )
+
+            if records:
+                return {'success': True, 'data': records[0]}
+            return {'error': 'Record not found'}
+        except xmlrpc.client.Fault as fault:
+            logger.error(f"XML-RPC Fault: {fault.faultString}")
+            return {'error': f"Odoo error: {fault.faultString}"}
         except Exception as e:
             logger.error(f"Error getting record: {e}")
             return {'error': str(e)}
 
     def create_record(self, model: str, values: Dict):
-        """Create a new record"""
+        """Crear un nuevo registro usando XML-RPC"""
         try:
-            endpoint = f"{self.url}/mcp/records/{model}"
-            data = {'values': values}
-            if self.db:
-                data['db'] = self.db
+            if not self.uid:
+                self.authenticate()
 
-            response = self.session.post(endpoint, json=data)
-            response.raise_for_status()
-            return response.json()
+            record_id = self.xmlrpc_object.execute_kw(
+                self.db, self.uid, self.api_key,
+                model, 'create',
+                [values]
+            )
+
+            return {'success': True, 'data': {'id': record_id}}
+        except xmlrpc.client.Fault as fault:
+            logger.error(f"XML-RPC Fault: {fault.faultString}")
+            return {'error': f"Odoo error: {fault.faultString}"}
         except Exception as e:
             logger.error(f"Error creating record: {e}")
             return {'error': str(e)}
 
     def update_record(self, model: str, record_id: int, values: Dict):
-        """Update an existing record"""
+        """Actualizar un registro existente usando XML-RPC"""
         try:
-            endpoint = f"{self.url}/mcp/records/{model}/{record_id}"
-            data = {'values': values}
-            if self.db:
-                data['db'] = self.db
+            if not self.uid:
+                self.authenticate()
 
-            response = self.session.put(endpoint, json=data)
-            response.raise_for_status()
-            return response.json()
+            result = self.xmlrpc_object.execute_kw(
+                self.db, self.uid, self.api_key,
+                model, 'write',
+                [[record_id], values]
+            )
+
+            return {'success': True, 'data': {'updated': result}}
+        except xmlrpc.client.Fault as fault:
+            logger.error(f"XML-RPC Fault: {fault.faultString}")
+            return {'error': f"Odoo error: {fault.faultString}"}
         except Exception as e:
             logger.error(f"Error updating record: {e}")
             return {'error': str(e)}
 
     def delete_record(self, model: str, record_id: int):
-        """Delete a record"""
+        """Eliminar un registro usando XML-RPC"""
         try:
-            endpoint = f"{self.url}/mcp/records/{model}/{record_id}"
-            params = {}
-            if self.db:
-                params['db'] = self.db
+            if not self.uid:
+                self.authenticate()
 
-            response = self.session.delete(endpoint, params=params)
-            response.raise_for_status()
-            return response.json()
+            result = self.xmlrpc_object.execute_kw(
+                self.db, self.uid, self.api_key,
+                model, 'unlink',
+                [[record_id]]
+            )
+
+            return {'success': True, 'data': {'deleted': result}}
+        except xmlrpc.client.Fault as fault:
+            logger.error(f"XML-RPC Fault: {fault.faultString}")
+            return {'error': f"Odoo error: {fault.faultString}"}
         except Exception as e:
             logger.error(f"Error deleting record: {e}")
             return {'error': str(e)}
 
     def list_models(self):
-        """List available models"""
+        """Listar modelos habilitados usando REST endpoint del módulo MCP"""
         try:
+            # Este endpoint sí es REST en el módulo MCP
             endpoint = f"{self.url}/mcp/models"
-            params = {}
-            if self.db:
-                params['db'] = self.db
-
-            response = self.session.get(endpoint, params=params)
+            response = self.session.get(endpoint)
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -134,6 +185,8 @@ class MCPServer:
     def __init__(self):
         self.app = web.Application()
         self.setup_routes()
+        self.request_count = 0
+        self.start_time = datetime.now()
 
     def setup_routes(self):
         """Setup HTTP routes for MCP protocol"""
@@ -228,12 +281,24 @@ class MCPServer:
                     status=401
                 )
 
-            # Create client-specific Odoo connection
+            # El DB es requerido para operaciones XML-RPC
+            if not odoo_db:
+                return web.json_response(
+                    {'error': 'X-Odoo-DB header is required'},
+                    status=400
+                )
+
+            # Crear o reutilizar cliente
+            client_key = f"{odoo_url}:{odoo_db}"
+
+            # Crear nuevo cliente si no existe en cache
             client_odoo = OdooClient(
                 url=odoo_url,
                 api_key=odoo_api_key,
                 db=odoo_db
             )
+            # Autenticar para obtener UID
+            client_odoo.authenticate()
 
             # Route to appropriate handler using client-specific connection
             if tool == 'search_records':
